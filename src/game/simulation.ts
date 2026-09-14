@@ -12,19 +12,20 @@ import {
   clientsPerMinute,
   cookDuration,
   getItem,
+  maxConcurrentClients,
   repPerClient,
   tipAmount,
+  xpPerClient,
 } from './catalog'
-import { nextUid, type useGameStore } from './store'
+import { nextUid, syncAllQuests, type useGameStore } from './store'
 
 type Store = typeof useGameStore
 
-const MOVE_STEP_SEC = 0.15 // 1 клетка за 150ms
+const WALK_CELLS_PER_SEC = 2.2 // плавная ходьба: ~2.2 клетки/сек при ×1
 const EAT_SEC = 3
 const PATIENCE_SEC = 30
 const PERFECT_SERVICE_SEC = 15
 
-const lastMove = new Map<string, number>()
 const eatUntil = new Map<string, number>()
 let spawnAccum = 0
 
@@ -33,17 +34,15 @@ let storeRef: Store | null = null
 
 /** Полный сброс модульного состояния симуляции (вызывается из resetGame) */
 export function resetSimulation() {
-  lastMove.clear()
   eatUntil.clear()
   spawnAccum = 0
 }
 
-/** Сдвиг всех таймеров реального времени (startedAt/readyAt/seatedAt/eatUntil/lastMove) на ms —
+/** Сдвиг всех таймеров реального времени (startedAt/readyAt/seatedAt/eatUntil) на ms —
  *  чтобы пауза (build mode, скрытая вкладка) не дозревала готовку/терпение */
 function shiftRealtimeTimers(ms: number) {
   if (ms <= 0) return
   for (const [k, v] of eatUntil) eatUntil.set(k, v + ms)
-  for (const [k, v] of lastMove) lastMove.set(k, v + ms)
   const s = storeRef?.getState()
   if (!s) return
   storeRef!.setState({
@@ -77,21 +76,40 @@ function pick<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)]
 }
 
-/** Один шаг по сетке к цели (прямой путь, упрощённый обход: сначала X, потом Y) */
-function stepToward(c: Client): Pick<Client, 'x' | 'y'> {
-  if (c.x !== c.tx) return { x: c.x + Math.sign(c.tx - c.x), y: c.y }
-  if (c.y !== c.ty) return { x: c.x, y: c.y + Math.sign(c.ty - c.y) }
-  return { x: c.x, y: c.y }
+/**
+ * Плавное движение к цели (упрощённый обход: сначала X, потом Y) с линейной
+ * интерполяцией по игровому времени — без строб-шагов по клеткам.
+ * Возвращает null, если цель достигнута.
+ */
+function moveToward(c: Client, dtSec: number): { x: number; y: number; facing: number } | null {
+  const maxDelta = WALK_CELLS_PER_SEC * dtSec
+  let { x, y, facing = 1 } = c
+  const move = (pos: number, target: number): number => {
+    const d = target - pos
+    if (Math.abs(d) <= maxDelta) return target
+    return pos + Math.sign(d) * maxDelta
+  }
+  if (Math.abs(c.tx - x) > 1e-9) {
+    const nx = move(x, c.tx)
+    if (nx !== x) facing = Math.sign(nx - x) // экранное направление: +x → вправо
+    x = nx
+  } else if (Math.abs(c.ty - y) > 1e-9) {
+    const ny = move(y, c.ty)
+    if (ny !== y) facing = -Math.sign(ny - y) // экранное направление: +y → влево
+    y = ny
+  }
+  if (x === c.tx && y === c.ty) return null
+  return { x, y, facing }
 }
 
 export function installSimulation(store: Store) {
   storeRef = store
   store.setState({
     // ---------- спавн клиента у двери ----------
-    spawnClient: (now: number) => {
+    spawnClient: (_now: number) => {
       const s = store.getState()
       const seats = s.totalSeats()
-      if (s.clients.length >= seats) return
+      if (s.clients.length >= Math.min(seats, maxConcurrentClients(s.level))) return
       // свободный стол: нет клиента с этим tableUid
       const busy = new Set(s.clients.map((c) => c.tableUid).filter(Boolean))
       const table = s.items.find(
@@ -110,27 +128,37 @@ export function installSimulation(store: Store) {
         patience: PATIENCE_SEC,
         bodyColor: pick(CLIENT_COLORS),
         face: pick(CLIENT_FACES),
+        seatIndex: 0,
+        facing: 1,
       }
-      lastMove.set(client.id, now)
       store.setState({ clients: [...s.clients, client] })
     },
 
     // ---------- начать готовку для ждущего клиента ----------
-    startCooking: (clientId: string, now: number) => {
+    startCooking: (clientId: string, now: number, stoveUid?: string) => {
       const s = store.getState()
       if (s.kitchenJobs.some((j) => j.clientId === clientId)) return
+      // явный выбор плиты: либо переданная (тап по конкретной плите), либо первая свободная
       const busyStoves = new Set(s.kitchenJobs.filter((j) => !j.ready).map((j) => j.stoveUid))
-      const stoveUid = s.stoveUids().find((uid) => !busyStoves.has(uid))
-      if (!stoveUid) return
+      const uid =
+        stoveUid && s.stoveUids().includes(stoveUid) && !busyStoves.has(stoveUid)
+          ? stoveUid
+          : s.stoveUids().find((u) => !busyStoves.has(u))
+      if (!uid) return
       const job: KitchenJob = {
         id: nextUid('job'),
         clientId,
-        stoveUid,
+        stoveUid: uid,
         startedAt: now,
         duration: cookDuration(s.hasStaff('cook'), s.items.some((i) => i.itemId === 'cutting_table')),
         ready: false,
       }
-      store.setState({ kitchenJobs: [...s.kitchenJobs, job] })
+      const stats = { ...s.stats, dishesCooked: s.stats.dishesCooked + 1 }
+      store.setState({
+        kitchenJobs: [...s.kitchenJobs, job],
+        stats,
+        ...syncAllQuests({ ...s, stats }),
+      })
     },
 
     // ---------- подача блюда: оплата + чаевые + XP ----------
@@ -161,6 +189,7 @@ export function installSimulation(store: Store) {
       const stats = { ...s.stats }
       stats.servedClients += 1
       stats.goodReviews += 1
+      stats.coinsEarned += total
 
       const table = s.items.find((i) => i.uid === client.tableUid)
       const fx = table ? table.x : client.x
@@ -175,26 +204,12 @@ export function installSimulation(store: Store) {
         kitchenJobs: s.kitchenJobs.filter((j) => j.id !== jobId),
         heldDishId: s.heldDishId === jobId ? null : s.heldDishId,
         stats,
-        quests: s.quests.map((q) =>
-          q.claimed
-            ? q
-            : {
-                ...q,
-                progress: Math.min(
-                  q.target,
-                  q.id === 'first_guest'
-                    ? stats.servedClients
-                    : q.id === 'happy_faces'
-                      ? stats.goodReviews
-                      : q.progress,
-                ),
-              },
-        ),
+        ...syncAllQuests({ ...s, stats }),
       })
       eatUntil.set(client.id, now + (EAT_SEC * 1000) / s.speed)
       s.spawnFloat(fx, fy, `+${total}🪙`, 'coin')
       if (perfect) s.spawnFloat(fx, fy - 0.5, 'Идеально! ×1.5 ⭐', 'xp')
-      s.addXp(Math.round(repPerClient(s.level)))
+      s.addXp(xpPerClient(s.level))
     },
 
     // ---------- главный тик ----------
@@ -204,7 +219,10 @@ export function installSimulation(store: Store) {
       // Скорость игры ×1/×2 — масштабируем игровое время
       dtSec *= s.speed
 
-      // --- спавн по темпу 0.6 + 0.04×ур клиентов/мин ---
+      // --- ежедневные квесты: сброс в 00:00 мск ---
+      s.ensureDailyQuests()
+
+      // --- спавн по темпу 0.9 + 0.06×ур клиентов/мин ---
       spawnAccum += dtSec
       const interval = 60 / clientsPerMinute(s.level)
       if (spawnAccum >= interval) {
@@ -249,24 +267,19 @@ export function installSimulation(store: Store) {
       let changed = false
       const floats: [number, number, string, 'coin' | 'xp' | 'rep-down'][] = []
       let repLoss = 0
-      // строб ходьбы игровым временем: при speed ×2 шаги вдвое чаще
-      const moveStepMs = (MOVE_STEP_SEC * 1000) / s.speed
       let clients = store
         .getState()
         .clients.map((c) => {
           if (c.phase === 'arriving' || c.phase === 'leaving' || c.phase === 'angry-leaving') {
-            const last = lastMove.get(c.id) ?? 0
-            if (now - last < moveStepMs) return c
-            lastMove.set(c.id, now)
-            const { x, y } = stepToward(c)
+            const moved = moveToward(c, dtSec)
             changed = true
-            if (x === c.tx && y === c.ty) {
+            if (!moved) {
               if (c.phase === 'arriving') {
-                return { ...c, x, y, phase: 'seated' as const, seatedAt: now }
+                return { ...c, x: c.tx, y: c.ty, phase: 'seated' as const, seatedAt: now }
               }
               return null // дошёл до двери — исчезает
             }
-            return { ...c, x, y }
+            return { ...c, ...moved }
           }
           if (c.phase === 'seated') {
             const patience = c.patience - dtSec
@@ -297,10 +310,6 @@ export function installSimulation(store: Store) {
           return c
         })
         .filter((c): c is Client => c !== null)
-
-      // очистка завершённых клиентов
-      const aliveIds = new Set(clients.map((c) => c.id))
-      for (const id of [...lastMove.keys()]) if (!aliveIds.has(id)) lastMove.delete(id)
 
       // сиротские kitchenJob: клиент ушёл (angry/довольный/исчез) — его заказы снимаем,
       // плита освобождается; блюдо «в руках» такого клиента сбрасываем

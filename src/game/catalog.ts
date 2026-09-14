@@ -205,21 +205,29 @@ export const TILE = 64
 export const DOOR = { x: -1, y: 4 }
 
 // --- Формулы экономики (info.md) ---
-/** XP для перехода N → N+1: 100 × N^1.5 */
+/** XP для перехода N → N+1: 60 × N^1.7 (быстрый старт, крутой рост потом) */
 export function xpTarget(level: number): number {
-  return Math.round(100 * Math.pow(level, 1.5))
+  return Math.round(60 * Math.pow(level, 1.7))
 }
 /** Средний чек: 8 + 1.5 × уровень */
 export function checkAmount(level: number): number {
   return 8 + 1.5 * level
 }
-/** Клиентов/мин: 0.6 + 0.04 × уровень */
+/** Клиентов/мин: 0.9 + 0.06 × уровень */
 export function clientsPerMinute(level: number): number {
-  return 0.6 + 0.04 * level
+  return 0.9 + 0.06 * level
+}
+/** Лимит одновременных клиентов в зале (кроме ограничения по местам) */
+export function maxConcurrentClients(level: number): number {
+  return 3 + level
 }
 /** Репутация за клиента: ≈ 2 + уровень/10 */
 export function repPerClient(level: number): number {
   return 2 + level / 10
+}
+/** XP за обслуженного клиента: 5 + уровень/5 */
+export function xpPerClient(level: number): number {
+  return Math.round(5 + level / 5)
 }
 /**
  * Чаевые: 5–20% от чека, масштабируются атмосферой (декор +%, макс +50%).
@@ -242,4 +250,74 @@ export function cookDuration(
 /** Возврат при продаже: 70% цены */
 export function sellPrice(price: number): number {
   return Math.round(price * 0.7)
+}
+
+// --- Ежедневные квесты ---
+import type { GameStats } from './types'
+
+export interface DailyQuestDef {
+  title: string
+  description: string
+  stat: keyof GameStats
+  target: number
+  reward: number
+  xpReward: number
+}
+
+/** Пул ежедневных заданий: 3 случайных перевыпускаются в 00:00 мск */
+export const DAILY_QUEST_POOL: DailyQuestDef[] = [
+  { title: 'Поток гостей', description: 'Обслужи 10 клиентов', stat: 'servedClients', target: 10, reward: 100, xpReward: 30 },
+  { title: 'Касса дня', description: 'Заработай 150🪙 с клиентов', stat: 'coinsEarned', target: 150, reward: 100, xpReward: 30 },
+  { title: 'Кухня дымится', description: 'Приготовь 8 блюд', stat: 'dishesCooked', target: 8, reward: 120, xpReward: 40 },
+  { title: 'Шопинг', description: 'Купи предмет в магазине', stat: 'itemsBought', target: 1, reward: 80, xpReward: 25 },
+  { title: 'Вкуснятина!', description: 'Получи 3 отзыва 😋', stat: 'goodReviews', target: 3, reward: 100, xpReward: 30 },
+]
+
+/** Ключ даты по Москве (UTC+3): YYYY-MM-DD */
+export function mskDateKey(now = Date.now()): string {
+  const d = new Date(now + 3 * 3600_000)
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`
+}
+
+/** 3 случайных ежедневных квеста из пула */
+export function rollDailyQuests(): import('./types').Quest[] {
+  const pool = [...DAILY_QUEST_POOL]
+  const out: import('./types').Quest[] = []
+  for (let i = 0; i < 3 && pool.length; i++) {
+    const idx = Math.floor(Math.random() * pool.length)
+    const def = pool.splice(idx, 1)[0]
+    out.push({
+      id: `daily_${def.stat}`,
+      title: def.title,
+      description: def.description,
+      stat: def.stat,
+      target: def.target,
+      progress: 0,
+      reward: def.reward,
+      xpReward: def.xpReward,
+      daily: true,
+      claimed: false,
+    })
+  }
+  return out
+}
+
+// --- Кресла у столов ---
+/** Смещения кресел в экранных px от изо-центра стола, по числу мест */
+export function seatOffsets(seats: number, wCells: number): [number, number][] {
+  if (seats <= 2) {
+    // 1×1 стол: кресла слева и снизу
+    return [
+      [-30, 8],
+      [0, 16],
+    ]
+  }
+  // 2×2 стол: 4 кресла по сторонам
+  const r = 34 + wCells * 12
+  return [
+    [-r, 0],
+    [0, -Math.round(r / 2)],
+    [r, 0],
+    [0, Math.round(r / 2) + 8],
+  ]
 }

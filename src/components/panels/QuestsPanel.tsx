@@ -107,12 +107,12 @@ function QuestRow({
             onClick={() => onClaim(quest.id)}
             className="px-3"
           >
-            Забрать +{quest.reward}🪙
+            Забрать +{quest.reward}🪙{quest.xpReward ? ` +${quest.xpReward}✨` : ""}
           </GameButton>
         </motion.div>
       ) : (
         <span className="tnum inline-flex min-h-[44px] shrink-0 items-center rounded-xl bg-cream px-3 font-display text-sm font-bold text-honey">
-          +{quest.reward}🪙
+          +{quest.reward}🪙{quest.xpReward ? ` +${quest.xpReward}✨` : ""}
         </span>
       )}
     </motion.div>
@@ -125,6 +125,7 @@ function QuestRow({
  */
 export default function QuestsPanel() {
   const quests = useGameStore((s) => s.quests)
+  const dailyQuests = useGameStore((s) => s.dailyQuests)
   const [burstAt, setBurstAt] = useState<string | null>(null)
 
   useEffect(() => {
@@ -138,15 +139,26 @@ export default function QuestsPanel() {
     setBurstAt(id)
   }
 
+  const renderList = (list: Quest[], offset = 0) =>
+    list.map((q, i) => (
+      <div key={q.id} className="relative">
+        {burstAt === q.id && <ConfettiBurst />}
+        <QuestRow quest={q} index={offset + i} onClaim={handleClaim} />
+      </div>
+    ))
+
   return (
     <div className="relative h-full overflow-y-auto">
       <div className="flex flex-col gap-2 pr-1">
-        {quests.map((q, i) => (
-          <div key={q.id} className="relative">
-            {burstAt === q.id && <ConfettiBurst />}
-            <QuestRow quest={q} index={i} onClaim={handleClaim} />
-          </div>
-        ))}
+        <div className="flex items-baseline justify-between px-1">
+          <h3 className="font-display text-sm font-extrabold text-cocoa">📅 Ежедневные</h3>
+          <span className="text-[11px] font-semibold text-cocoa-soft">
+            обновятся в 00:00 мск
+          </span>
+        </div>
+        {renderList(dailyQuests)}
+        <h3 className="mt-2 px-1 font-display text-sm font-extrabold text-cocoa">📜 Сюжетные</h3>
+        {renderList(quests, dailyQuests.length)}
       </div>
     </div>
   )

@@ -24,6 +24,8 @@ export const CUSTOMER_SPRITES = ['customer_1', 'customer_2', 'customer_3', 'cust
 
 export const DOOR_SPRITE = 'door'
 
+export const CHAIR_SPRITE = 'chair'
+
 // Эмодзи заказа → иконка блюда (только для блюд со спрайтом).
 export const DISH_SPRITES: Record<string, string> = {
   '🥗': 'dish_salad',

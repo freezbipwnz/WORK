@@ -378,6 +378,33 @@
   animation: badge-pulse 1.2s ease-in-out infinite;
 }
 
+/* Посадка на стул: приседание 250ms, затем лёгкий seated-bob */
+@keyframes seat-squat {
+  0% {
+    transform: translateY(0) scaleY(1);
+  }
+  50% {
+    transform: translateY(6px) scaleY(0.85);
+  }
+  100% {
+    transform: translateY(4px) scaleY(1);
+  }
+}
+@keyframes seated-bob {
+  0%,
+  100% {
+    transform: translateY(4px);
+  }
+  50% {
+    transform: translateY(2px);
+  }
+}
+.anim-seated {
+  animation:
+    seat-squat 250ms ease-out,
+    seated-bob 2.2s ease-in-out 250ms infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .anim-bounce-idle,
   .anim-walk-wiggle,

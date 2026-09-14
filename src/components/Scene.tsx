@@ -2,11 +2,11 @@ import { memo } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useGameStore } from '@/game/store'
-import { DOOR, HALL_H, HALL_W, getItem } from '@/game/catalog'
+import { DOOR, HALL_H, HALL_W, getItem, seatOffsets } from '@/game/catalog'
 import { isoX, isoY, zOrder, Z, SCENE_W, SCENE_H, WALL_H, TILE_W, TILE_H } from '@/game/iso'
 import type { Client, PlacedItem } from '@/game/types'
 import { cn } from '@/lib/utils'
-import { CUSTOMER_SPRITES, DISH_SPRITES, DOOR_SPRITE, ITEM_SPRITES, STAFF_SPRITES, customerSprite, spriteUrl } from './sprites'
+import { CHAIR_SPRITE, CUSTOMER_SPRITES, DISH_SPRITES, DOOR_SPRITE, ITEM_SPRITES, STAFF_SPRITES, customerSprite, spriteUrl } from './sprites'
 import BuildModeOverlay from './BuildMode'
 
 const DIAMOND = 'polygon(50% 0, 100% 50%, 50% 100%, 0 50%)'
@@ -188,49 +188,6 @@ function Tabletop({ bg, w = 52 }: { bg: string; w?: number }) {
   )
 }
 
-/** Головы сидящих клиентов вокруг стола */
-function SeatedHeads({ clients }: { clients: Client[] }) {
-  const offsets: [number, number][] = [
-    [-26, 4],
-    [26, 4],
-    [-14, -18],
-    [14, -18],
-  ]
-  return (
-    <>
-      {clients.slice(0, 4).map((c, i) =>
-        CUSTOMER_SPRITES.length ? (
-          <img
-            key={c.id}
-            src={spriteUrl(customerSprite(c.id))}
-            alt=""
-            draggable={false}
-            className="pointer-events-none absolute block h-auto select-none"
-            style={{
-              left: `calc(50% + ${offsets[i][0] - 12}px)`,
-              bottom: 8 + offsets[i][1] * -1 + 14,
-              width: 24,
-              filter: 'drop-shadow(0 1px 0 rgba(92,70,51,0.3))',
-            }}
-          />
-        ) : (
-          <span
-            key={c.id}
-            className="absolute text-lg leading-none"
-            style={{
-              left: `calc(50% + ${offsets[i][0] - 9}px)`,
-              bottom: 8 + offsets[i][1] * -1 + 18,
-              filter: 'drop-shadow(0 1px 0 rgba(92,70,51,0.3))',
-            }}
-          >
-            {c.phase === 'eating' ? '😍' : c.face}
-          </span>
-        ),
-      )}
-    </>
-  )
-}
-
 function Steam() {
   return (
     <div className="pointer-events-none absolute -top-4 left-1/2 -translate-x-1/2" style={{ zIndex: Z.bubble }}>
@@ -247,12 +204,15 @@ function Steam() {
   )
 }
 
-/** Круговой таймер готовки */
+/** Круговой таймер готовки — строго по центру над плитой */
 function CookTimer({ startedAt, duration }: { startedAt: number; duration: number }) {
   const elapsed = (Date.now() - startedAt) / 1000
   const pct = Math.min(1, elapsed / duration)
   return (
-    <svg className="absolute -right-2 -top-5 h-5 w-5 -rotate-90" viewBox="0 0 20 20">
+    <svg
+      className="absolute -top-6 left-1/2 h-5 w-5 -translate-x-1/2 -rotate-90"
+      viewBox="0 0 20 20"
+    >
       <circle cx="10" cy="10" r="8" fill="#FDF9EE" stroke="#EEDFC7" strokeWidth="3" />
       <circle
         cx="10" cy="10" r="8" fill="none" stroke="#8FAE7C" strokeWidth="3"
@@ -307,7 +267,6 @@ function PlacedItemView({ item }: { item: PlacedItem }) {
               )}
             </span>
           )}
-          <SeatedHeads clients={seated} />
         </Sticker>
       )
     case 'table_wooden':
@@ -340,7 +299,6 @@ function PlacedItemView({ item }: { item: PlacedItem }) {
               )}
             </span>
           )}
-          <SeatedHeads clients={seated} />
         </Sticker>
       )
     case 'stove_gas':
@@ -387,11 +345,17 @@ function PlacedItemView({ item }: { item: PlacedItem }) {
       )
     case 'cutting_table':
       return (
-        <Sticker x={item.x} y={item.y} platform="#D9C49A" emoji="🔪" emojiSize={44} title={def.name} />
+        <Sticker
+          x={item.x} y={item.y} platform="#D9C49A" emoji="🔪" emojiSize={44}
+          sprite={ITEM_SPRITES.cutting_table} title={def.name}
+        />
       )
     case 'fridge':
       return (
-        <Sticker x={item.x} y={item.y} platform="#C4CFD2" emoji="🧊" emojiSize={46} title={def.name} />
+        <Sticker
+          x={item.x} y={item.y} platform="#C4CFD2" emoji="🧊" emojiSize={46}
+          sprite={ITEM_SPRITES.fridge} title={def.name}
+        />
       )
     case 'ficus':
       return (
@@ -469,10 +433,63 @@ function PlacedItemView({ item }: { item: PlacedItem }) {
   }
 }
 
+/** Стулья вокруг стола: по одному на посадочное место (chair.png с фоллбэком 🪑) */
+function Chairs({ item }: { item: PlacedItem }) {
+  const def = getItem(item.itemId)
+  if (!def?.seats) return null
+  const fx = item.x + def.w / 2 - 0.5
+  const fy = item.y + def.h / 2 - 0.5
+  const cx = isoX(fx, fy)
+  const cy = isoY(fx, fy)
+  const offs = seatOffsets(def.seats, def.w)
+  const hasSprite = !!CHAIR_SPRITE
+  return (
+    <>
+      {offs.map(([ox, oy], i) => (
+        <div
+          key={i}
+          className="pointer-events-none absolute"
+          style={{
+            left: cx + ox,
+            top: cy + oy,
+            // кресла «сверху» стола — позади него, остальные — спереди
+            zIndex: zOrder(fx, fy, oy < -4 ? Z.object - 1 : Z.character - 1),
+            transform: 'translate(-50%,-100%)',
+          }}
+        >
+          {hasSprite ? (
+            <img
+              src={spriteUrl(CHAIR_SPRITE)}
+              alt=""
+              draggable={false}
+              className="block h-auto w-6 select-none"
+              style={{
+                filter: 'drop-shadow(0 1px 1px rgba(92,70,51,0.3))',
+                transform: ox > 4 ? 'scaleX(-1)' : undefined,
+              }}
+            />
+          ) : (
+            <span
+              className="inline-block text-base leading-none"
+              style={{ transform: ox > 4 ? 'scaleX(-1)' : undefined }}
+            >
+              🪑
+            </span>
+          )}
+        </div>
+      ))}
+    </>
+  )
+}
+
 // ---------- персонажи ----------
 
 const ClientView = memo(function ClientView({ client }: { client: Client }) {
   const moving = client.phase === 'arriving' || client.phase === 'leaving' || client.phase === 'angry-leaving'
+  // посадка строго на своё кресло: смещение от изо-центра стола
+  const table = useGameStore((s) =>
+    client.tableUid ? s.items.find((i) => i.uid === client.tableUid) : undefined,
+  )
   const bubble =
     client.phase === 'seated'
       ? useGameStore.getState().kitchenJobs.some((j) => j.clientId === client.id)
@@ -486,8 +503,22 @@ const ClientView = memo(function ClientView({ client }: { client: Client }) {
             ? '😍'
             : null
 
-  const cx = isoX(client.x, client.y)
-  const cy = isoY(client.x, client.y)
+  const isSeated = client.phase === 'seated' || client.phase === 'eating'
+  let seatDx = 0
+  let seatDy = 0
+  if (isSeated && table) {
+    const def = getItem(table.itemId)
+    if (def?.seats) {
+      const offs = seatOffsets(def.seats, def.w)
+      const [ox, oy] = offs[(client.seatIndex ?? 0) % offs.length]
+      // изо-центр footprint стола → экранное смещение кресла
+      seatDx = isoX(table.x + def.w / 2 - 0.5, table.y + def.h / 2 - 0.5) - isoX(client.x, client.y) + ox
+      seatDy = isoY(table.x + def.w / 2 - 0.5, table.y + def.h / 2 - 0.5) - isoY(client.x, client.y) + oy
+    }
+  }
+
+  const cx = isoX(client.x, client.y) + seatDx
+  const cy = isoY(client.x, client.y) + seatDy
 
   return (
     <motion.div
@@ -501,8 +532,8 @@ const ClientView = memo(function ClientView({ client }: { client: Client }) {
       }}
       exit={{ opacity: 0 }}
       transition={{
-        left: { duration: 0.12, ease: 'linear' },
-        top: { duration: 0.12, ease: 'linear' },
+        left: { duration: 0.26, ease: 'linear' },
+        top: { duration: 0.26, ease: 'linear' },
         scale: { type: 'spring', stiffness: 400, damping: 15 },
       }}
       style={{ width: 0, height: 0, zIndex: zOrder(client.x, client.y, Z.character) }}
@@ -516,7 +547,13 @@ const ClientView = memo(function ClientView({ client }: { client: Client }) {
           borderRadius: '50%',
         }}
       />
-      <div className={cn('relative -translate-x-1/2 -translate-y-full', moving ? 'anim-walk-wiggle' : 'anim-bounce-idle')}>
+      <div
+        className={cn(
+          'relative -translate-x-1/2 -translate-y-full',
+          moving ? 'anim-walk-wiggle' : isSeated ? 'anim-seated' : 'anim-bounce-idle',
+        )}
+        style={{ scale: `${moving ? (client.facing ?? 1) : 1} 1` }}
+      >
         {bubble && (
           <div
             className="anim-bubble-bob absolute left-1/2 -translate-x-1/2 rounded-xl bg-paper px-1.5 py-0.5 text-sm shadow-sticker outline-cozy"
@@ -631,6 +668,7 @@ function Floats() {
           style={{
             left: isoX(f.x, f.y) + (Math.random() * 24 - 12),
             top: isoY(f.x, f.y) - 24,
+            translate: '-50% -100%', // центрирование над точкой события
             zIndex: zOrder(f.x, f.y, Z.bubble),
             textShadow: '0 1px 0 rgba(92,70,51,0.3)',
           }}
@@ -824,6 +862,9 @@ export default function Scene() {
       <Door />
       {items.map((item) => (
         <PlacedItemView key={item.uid} item={item} />
+      ))}
+      {items.map((item) => (
+        <Chairs key={`chairs-${item.uid}`} item={item} />
       ))}
       <StaffFigures />
       <AnimatePresence>

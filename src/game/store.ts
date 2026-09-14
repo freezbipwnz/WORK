@@ -15,6 +15,8 @@ import {
   getItem,
   sellPrice,
   xpTarget,
+  mskDateKey,
+  rollDailyQuests,
   HALL_W,
   HALL_H,
   KITCHEN_W,
@@ -70,6 +72,8 @@ function initialQuests(): Quest[] {
       target: 1,
       progress: 0,
       reward: 100,
+      xpReward: 50,
+      stat: 'servedClients',
       claimed: false,
     },
     {
@@ -79,6 +83,8 @@ function initialQuests(): Quest[] {
       target: 1,
       progress: 0,
       reward: 150,
+      xpReward: 60,
+      stat: 'tablesBought',
       claimed: false,
     },
     {
@@ -88,6 +94,8 @@ function initialQuests(): Quest[] {
       target: 5,
       progress: 0,
       reward: 200,
+      xpReward: 100,
+      stat: 'goodReviews',
       claimed: false,
     },
     {
@@ -97,6 +105,8 @@ function initialQuests(): Quest[] {
       target: 1,
       progress: 0,
       reward: 250,
+      xpReward: 120,
+      stat: 'cooksHired',
       claimed: false,
     },
     {
@@ -106,6 +116,8 @@ function initialQuests(): Quest[] {
       target: 3,
       progress: 0,
       reward: 300,
+      xpReward: 150,
+      stat: 'decorPlaced',
       claimed: false,
     },
   ]
@@ -118,23 +130,26 @@ function initialStats(): GameStats {
     tablesBought: 0,
     decorPlaced: 0,
     cooksHired: 0,
+    dishesCooked: 0,
+    coinsEarned: 0,
+    itemsBought: 0,
   }
-}
-
-const QUEST_STAT: Record<string, keyof GameStats> = {
-  first_guest: 'servedClients',
-  second_table: 'tablesBought',
-  happy_faces: 'goodReviews',
-  team: 'cooksHired',
-  cozy: 'decorPlaced',
 }
 
 function syncQuests(quests: Quest[], stats: GameStats): Quest[] {
   return quests.map((q) =>
-    q.claimed
+    q.claimed || !q.stat
       ? q
-      : { ...q, progress: Math.min(q.target, stats[QUEST_STAT[q.id]] ?? 0) },
+      : { ...q, progress: Math.min(q.target, stats[q.stat] ?? 0) },
   )
+}
+
+/** Синхронизация прогресса и сюжетных, и ежедневных квестов */
+function syncAllQuests(s: Pick<GameState, 'quests' | 'dailyQuests' | 'stats'>) {
+  return {
+    quests: syncQuests(s.quests, s.stats),
+    dailyQuests: syncQuests(s.dailyQuests, s.stats),
+  }
 }
 
 /** Проверка: можно ли поставить предмет (зона + пересечения) */
@@ -172,6 +187,8 @@ interface SaveData {
   items: PlacedItem[]
   staff: { role: StaffRole; hiredAt: number }[]
   quests: Quest[]
+  dailyQuests: Quest[]
+  dailyDate: string
   stats: GameStats
   soundOn: boolean
   onboardingDone: boolean
@@ -187,6 +204,8 @@ export function saveGame(s: GameState) {
     items: s.items,
     staff: s.staff,
     quests: s.quests,
+    dailyQuests: s.dailyQuests,
+    dailyDate: s.dailyDate,
     stats: s.stats,
     soundOn: s.soundOn,
     onboardingDone: s.onboardingDone,
@@ -211,8 +230,10 @@ function loadGame(): Partial<GameState> | null {
       reputation: d.reputation ?? 0,
       items: d.items,
       staff: d.staff,
-      quests: syncQuests(d.quests ?? initialQuests(), d.stats ?? initialStats()),
-      stats: d.stats ?? initialStats(),
+      quests: syncQuests(d.quests ?? initialQuests(), { ...initialStats(), ...(d.stats ?? {}) }),
+      dailyQuests: syncQuests(d.dailyQuests ?? rollDailyQuests(), { ...initialStats(), ...(d.stats ?? {}) }),
+      dailyDate: d.dailyDate ?? mskDateKey(),
+      stats: { ...initialStats(), ...(d.stats ?? {}) },
       soundOn: d.soundOn ?? true,
       onboardingDone: d.onboardingDone ?? false,
       savedAt: Date.now(),
@@ -238,6 +259,8 @@ export interface GameActions {
   hasStaff: (role: StaffRole) => boolean
   // --- квесты ---
   claimQuest: (questId: string) => void
+  /** Перевыпуск ежедневных квестов, если по Москве наступили новые сутки */
+  ensureDailyQuests: () => void
   // --- экономика / прогресс ---
   addCoins: (n: number) => void
   addGems: (n: number) => void
@@ -260,7 +283,7 @@ export interface GameActions {
   // --- симуляция (вызывается из simulation.ts) ---
   simTick: (dtSec: number, now: number) => void
   spawnClient: (now: number) => void
-  startCooking: (clientId: string, now: number) => void
+  startCooking: (clientId: string, now: number, stoveUid?: string) => void
   serveDish: (jobId: string, now: number) => void
 }
 
@@ -278,6 +301,8 @@ function baseState(): GameState {
     clients: [],
     kitchenJobs: [],
     quests: initialQuests(),
+    dailyQuests: rollDailyQuests(),
+    dailyDate: mskDateKey(),
     stats: initialStats(),
     floats: [],
     toasts: [],
@@ -351,10 +376,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
       const stats = { ...s.stats }
       if (def.category === 'table') stats.tablesBought += 1
       if (def.category === 'decor') stats.decorPlaced += 1
+      stats.itemsBought += 1
       set({
         items,
         stats,
-        quests: syncQuests(s.quests, stats),
+        ...syncAllQuests({ ...s, stats }),
         buildItemId: null,
       })
     }
@@ -418,16 +444,21 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (s.mode !== 'live') return
     const job = s.kitchenJobs.find((j) => j.stoveUid === uid)
     if (job?.ready) {
-      // взять готовое блюдо
+      // взять готовое блюдо ИМЕННО с этой плиты
       set({ heldDishId: job.id })
       return
     }
-    // нет активной готовки на этой плите — стартуем, если есть ждущий клиент
-    if (!job) {
-      const waiting = s.clients.find((c) => c.phase === 'seated' && !s.kitchenJobs.some((j) => j.clientId === c.id))
-      if (waiting && s.kitchenJobs.filter((j) => !j.ready).length < get().maxConcurrentOrders()) {
-        get().startCooking(waiting.id, Date.now())
-      }
+    if (job) {
+      // на этой плите ещё готовится
+      get().pushToast('Ещё готовится 🔥', 'info')
+      return
+    }
+    // плита свободна — стартуем готовку именно на ней, если есть ждущий клиент
+    const waiting = s.clients.find((c) => c.phase === 'seated' && !s.kitchenJobs.some((j) => j.clientId === c.id))
+    if (waiting && s.kitchenJobs.filter((j) => !j.ready).length < get().maxConcurrentOrders()) {
+      get().startCooking(waiting.id, Date.now(), uid)
+    } else if (!waiting) {
+      get().pushToast('Нет заказов 🍽️', 'info')
     }
   },
 
@@ -483,7 +514,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       coins: s.coins - def.cost,
       staff: [...s.staff, { role, hiredAt: Date.now() }],
       stats,
-      quests: syncQuests(s.quests, stats),
+      ...syncAllQuests({ ...s, stats }),
     })
     get().pushToast(`${def.emoji} ${def.name} нанят! 🎉`, 'success')
     return true
@@ -495,14 +526,30 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   claimQuest: (questId) => {
     const s = get()
-    const q = s.quests.find((x) => x.id === questId)
+    const daily = s.dailyQuests.some((x) => x.id === questId)
+    const list = daily ? s.dailyQuests : s.quests
+    const q = list.find((x) => x.id === questId)
     if (!q || q.claimed || q.progress < q.target) return
+    const claimedList = list.map((x) => (x.id === questId ? { ...x, claimed: true } : x))
     set({
-      quests: s.quests.map((x) => (x.id === questId ? { ...x, claimed: true } : x)),
+      [daily ? 'dailyQuests' : 'quests']: claimedList,
       coins: s.coins + q.reward,
+    } as Partial<GameState>)
+    const xp = q.xpReward ?? 10
+    get().pushToast(`Квест выполнен: ${q.title}! +${q.reward}🪙 +${xp}✨`, 'success')
+    get().addXp(xp)
+  },
+
+  ensureDailyQuests: () => {
+    const s = get()
+    const today = mskDateKey()
+    if (s.dailyDate === today) return
+    // новые сутки по Москве — перевыпускаем 3 случайных задания, прогресс обнуляется
+    set({
+      dailyQuests: rollDailyQuests(),
+      dailyDate: today,
     })
-    get().pushToast(`Квест выполнен: ${q.title}! +${q.reward}🪙`, 'success')
-    get().addXp(10)
+    get().pushToast('Новые ежедневные задания! 📅', 'info')
   },
 
   // ---------- экономика ----------
@@ -589,8 +636,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   resetGame: () => {
     localStorage.removeItem(SAVE_KEY)
-    resetSimulation() // чистим модульные Map симуляции (spawnAccum/eatUntil/lastMove)
-    set({ ...baseState(), items: initialItems(), quests: initialQuests() })
+    resetSimulation() // чистим модульные Map симуляции (spawnAccum/eatUntil)
+    set({
+      ...baseState(),
+      items: initialItems(),
+      quests: initialQuests(),
+      dailyQuests: rollDailyQuests(),
+      dailyDate: mskDateKey(),
+    })
     get().pushToast('Новый ресторан, новая жизнь! 🏠', 'info')
   },
 
@@ -611,6 +664,8 @@ import {
   resumeRealtimeTimers,
 } from './simulation'
 installSimulation(useGameStore)
+// при загрузке: если по Москве новые сутки — перевыпустить ежедневные квесты
+useGameStore.getState().ensureDailyQuests()
 
-export { SAVE_KEY, initialQuests, initialStats }
+export { SAVE_KEY, initialQuests, initialStats, syncAllQuests }
 export type { Client, KitchenJob }

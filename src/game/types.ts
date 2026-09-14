@@ -80,6 +80,10 @@ export interface Client {
   face: string
   /** Время, когда сел (для бонуса «идеальное обслуживание») */
   seatedAt?: number
+  /** Индекс кресла за столом (0..seats-1) */
+  seatIndex?: number
+  /** Направление взгляда при ходьбе: 1 вправо / -1 влево (по экрану) */
+  facing?: number
 }
 
 /** Задание на кухне: готовка блюда для клиента */
@@ -103,6 +107,12 @@ export interface Quest {
   progress: number
   /** Награда в монетах */
   reward: number
+  /** Награда в XP (квесты дают опыт) */
+  xpReward?: number
+  /** Ключ статистики, по которой считается прогресс */
+  stat?: keyof GameStats
+  /** Ежедневный квест (перевыпускается в 00:00 мск) */
+  daily?: boolean
   claimed: boolean
 }
 
@@ -129,6 +139,12 @@ export interface GameStats {
   tablesBought: number
   decorPlaced: number
   cooksHired: number
+  /** Приготовлено блюд (стартов готовки) */
+  dishesCooked: number
+  /** Заработано монет с клиентов */
+  coinsEarned: number
+  /** Куплено предметов (любых) */
+  itemsBought: number
 }
 
 export interface GameState {
@@ -142,6 +158,10 @@ export interface GameState {
   clients: Client[]
   kitchenJobs: KitchenJob[]
   quests: Quest[]
+  /** Ежедневные квесты (3 слота, сброс в 00:00 мск) */
+  dailyQuests: Quest[]
+  /** Дата выпуска ежедневных квестов (YYYY-MM-DD по Москве, UTC+3) */
+  dailyDate: string
   stats: GameStats
   floats: FloatText[]
   toasts: ToastMsg[]
