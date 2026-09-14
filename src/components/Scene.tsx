@@ -1,8 +1,8 @@
-import { memo } from 'react'
+import { memo, useEffect, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useGameStore } from '@/game/store'
-import { CURB_ROW, DOOR, HALL_H, HALL_W, STREET_ROWS, getItem, seatOffsets } from '@/game/catalog'
+import { CURB_ROW, DOOR, HALL_H, HALL_W, STREET_ROWS, getItem, pxOffsetToCells, seatOffsets } from '@/game/catalog'
 import { isoX, isoY, zOrder, Z, SCENE_W, SCENE_H, WALL_H, TILE_W, TILE_H } from '@/game/iso'
 import type { Client, Pedestrian, PlacedItem, StaffNpc, Stain } from '@/game/types'
 import { cn } from '@/lib/utils'
@@ -10,6 +10,11 @@ import { CHAIR_SPRITE, CUSTOMER_SPRITES, DISH_SPRITES, ITEM_SPRITES, STAFF_SPRIT
 import BuildModeOverlay from './BuildMode'
 
 const DIAMOND = 'polygon(50% 0, 100% 50%, 50% 100%, 0 50%)'
+
+// dev-отладка: стор в консоли/headless-автотестах (только dev-server, в проде не попадает)
+if (import.meta.env.DEV) {
+  ;(window as unknown as { __game?: typeof useGameStore }).__game = useGameStore
+}
 
 // ---------- базовые изо-примитивы (design.md §5.3) ----------
 
@@ -118,6 +123,10 @@ function Sticker({
   const sprH = Math.round(sprW * 1.15)
   const useW = sprite ? sprW : box
   const useH = sprite ? sprH + 16 : emojiSize + 16
+  // Якорь «ног» спрайта: нижняя кромка ромба footprint минус 8px (как у 1×1,
+  // где низ стоит на cy+8). Нижний вертекс ромба w×h лежит на (w+h)·TILE_H/4
+  // ниже изо-центра — без этого предметы 2×2 «висели» над своей платформой.
+  const basePad = (wCells + hCells) * (TILE_H / 4) - 8
   return (
     <>
       {/* ромб-платформа (чуть меньше тайла — «коврик» под предметом) */}
@@ -134,7 +143,7 @@ function Sticker({
         className={cn('absolute flex items-end justify-center', onClick && 'cursor-pointer', className)}
         style={{
           left: cx - useW / 2,
-          top: cy - useH + 8,
+          top: cy - useH + basePad,
           width: useW,
           height: useH,
           zIndex: zOrder(fx + wCells / 2, fy + hCells / 2, zLayer),
@@ -486,11 +495,17 @@ function Chairs({ item }: { item: PlacedItem }) {
   const cy = isoY(fx, fy)
   const offs = seatOffsets(def.seats, def.w)
   const hasSprite = !!CHAIR_SPRITE
+  // z передней (нижней) кромки footprint стола — совпадает с zIndex спрайта стола
+  const frontZ = zOrder(item.x + def.w - 0.5, item.y + def.h - 0.5, Z.object)
   return (
     <>
       {offs.map(([ox, oy], i) => {
         // поворот к столу: стол справа (кресло слева) → flip; стол слева → как есть
         const flip = ox < -4
+        // глубина кресла — от его ФАКТИЧЕСКОЙ точки (seatOffset), а не от центра
+        // footprint: у столов 2×2 передние кресла иначе уходили за стол
+        const { dx, dy } = pxOffsetToCells(ox, oy)
+        const seatZ = zOrder(fx + dx, fy + dy, Z.character - 1)
         return (
           <div
             key={i}
@@ -498,8 +513,9 @@ function Chairs({ item }: { item: PlacedItem }) {
             style={{
               left: cx + ox,
               top: cy + oy,
-              // кресла «сверху» стола — позади него, остальные — спереди
-              zIndex: zOrder(fx, fy, oy < -4 ? Z.object - 1 : Z.character - 1),
+              // кресла «сверху» стола — позади него (своей глубиной),
+              // передние — гарантированно ПЕРЕД столом (painter's algorithm)
+              zIndex: oy < -4 ? zOrder(fx + dx, fy + dy, Z.object - 1) : Math.max(seatZ, frontZ + 1),
               transform: 'translate(-50%,-100%)',
             }}
           >
@@ -531,6 +547,41 @@ function Chairs({ item }: { item: PlacedItem }) {
 
 // ---------- персонажи ----------
 
+/**
+ * Баббл «кушает»: 🍽 + полоска-таймер трапезы (eatStart→eatEnd), строго над
+ * головой (~68px выше опорной точки; для сидящего — над его посадочной точкой,
+ * т.к. рендерится внутри ClientView на позиции кресла). Единая точка рендера
+ * индикатора еды — отдельный оверлей EatingBars отключён (без дублей).
+ */
+function EatBubble({ start, end }: { start?: number; end?: number }) {
+  // прогресс — по реальному времени: пересчёт в интервале 4 раза в секунду
+  const [pct, setPct] = useState(0)
+  useEffect(() => {
+    const update = () =>
+      setPct(
+        start !== undefined && end !== undefined
+          ? Math.min(1, Math.max(0, (Date.now() - start) / Math.max(1, end - start)))
+          : 0,
+      )
+    update()
+    const id = setInterval(update, 250)
+    return () => clearInterval(id)
+  }, [start, end])
+  return (
+    <div
+      className="anim-bubble-bob absolute left-1/2 -translate-x-1/2 rounded-xl bg-paper px-1.5 py-1 shadow-sticker outline-cozy"
+      style={{ top: -68, zIndex: Z.bubble }}
+    >
+      <div className="flex items-center gap-1">
+        <span className="text-xs leading-none">🍽</span>
+        <div className="h-1 w-7 overflow-hidden rounded-full bg-wall">
+          <div className="h-full rounded-full bg-sage" style={{ width: `${pct * 100}%` }} />
+        </div>
+      </div>
+    </div>
+  )
+}
+
 const ClientView = memo(function ClientView({ client }: { client: Client }) {
   const moving = client.phase === 'arriving' || client.phase === 'leaving' || client.phase === 'angry-leaving'
   // посадка строго на своё кресло: смещение от изо-центра стола
@@ -541,6 +592,8 @@ const ClientView = memo(function ClientView({ client }: { client: Client }) {
     client.phase === 'waiting' && client.waitingUntil
       ? Math.max(0, Math.ceil((client.waitingUntil - Date.now()) / 1000))
       : 0
+  // Статусы над головой: сел (заказ/⏳ + терпение) → 🍽 с полосой таймера
+  // (отдельный баббл ниже) → доел 😍 → уходит; терпение вышло → 😠 → уходит.
   const bubble =
     client.phase === 'waiting'
       ? `${waitLeftSec}с`
@@ -549,9 +602,9 @@ const ClientView = memo(function ClientView({ client }: { client: Client }) {
           ? '⏳'
           : client.order
         : client.phase === 'eating'
-          ? '😍'
+          ? null // «кушает» — отдельный баббл с таймером (EatBubble), без дублей
           : client.phase === 'angry-leaving'
-            ? '😡'
+            ? '😠'
             : client.phase === 'leaving'
               ? '😍'
               : null
@@ -560,17 +613,30 @@ const ClientView = memo(function ClientView({ client }: { client: Client }) {
   let seatDx = 0
   let seatDy = 0
   let seatFacing = 1
+  // z-order сидящего: от фактической посадочной точки (seatOffset),
+  // передние места — гарантированно ПЕРЕД стулом и столом
+  let seatedZ: number | null = null
   if (isSeated && table) {
     const def = getItem(table.itemId)
     if (def?.seats) {
       const offs = seatOffsets(def.seats, def.w)
       const [ox, oy] = offs[(client.seatIndex ?? 0) % offs.length]
+      const fx = table.x + def.w / 2 - 0.5
+      const fy = table.y + def.h / 2 - 0.5
       // изо-центр footprint стола → экранное смещение кресла
-      seatDx = isoX(table.x + def.w / 2 - 0.5, table.y + def.h / 2 - 0.5) - isoX(client.x, client.y) + ox
-      seatDy = isoY(table.x + def.w / 2 - 0.5, table.y + def.h / 2 - 0.5) - isoY(client.x, client.y) + oy
+      seatDx = isoX(fx, fy) - isoX(client.x, client.y) + ox
+      seatDy = isoY(fx, fy) - isoY(client.x, client.y) + oy
       // сидит ЛИЦОМ к столу: место слева от центра (ox<0) → смотрит вправо,
       // спрайт по умолчанию смотрит вправо → flip нужен для мест справа
       seatFacing = ox < 0 ? 1 : -1
+      // глубина посадочной точки в изо-клетках (работает для любых w×h)
+      const { dx, dy } = pxOffsetToCells(ox, oy)
+      const seatZ = zOrder(fx + dx, fy + dy, Z.character)
+      // передняя кромка footprint стола = z спрайта стола/кресел-в-арте
+      const tableFrontZ = zOrder(table.x + def.w - 0.5, table.y + def.h - 0.5, Z.object)
+      // места в передней половине (oy ≥ -4): клиент строго ПЕРЕД стулом и столом;
+      // дальние места — своей глубиной (стол частично закрывает ноги, как вживую)
+      seatedZ = oy >= -4 ? Math.max(seatZ, tableFrontZ + 2) : seatZ
     }
   }
 
@@ -593,7 +659,7 @@ const ClientView = memo(function ClientView({ client }: { client: Client }) {
         top: { duration: 0.26, ease: 'linear' },
         scale: { type: 'spring', stiffness: 400, damping: 15 },
       }}
-      style={{ width: 0, height: 0, zIndex: zOrder(client.x, client.y, Z.character) }}
+      style={{ width: 0, height: 0, zIndex: seatedZ ?? zOrder(client.x, client.y, Z.character) }}
     >
       {/* изо-тень под ногами (для VIP — золотое кольцо-подсветка) */}
       <div
@@ -655,6 +721,7 @@ const ClientView = memo(function ClientView({ client }: { client: Client }) {
             )}
           </div>
         )}
+        {client.phase === 'eating' && <EatBubble start={client.eatStart} end={client.eatEnd} />}
         {CUSTOMER_SPRITES.length ? (
           <div style={{ transform: `scaleX(${moving ? (client.facing ?? 1) : isSeated ? seatFacing : 1})` }}>
             <img

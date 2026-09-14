@@ -48,7 +48,12 @@ import {
 
 type Store = typeof useGameStore
 
-const WALK_CELLS_PER_SEC = 2.2 // плавная ходьба: ~2.2 клетки/сек при ×1
+/**
+ * ЕДИНАЯ скорость ходьбы ВСЕХ фигур (клиенты, повар/официант, уборщик,
+ * пешеходы): ~2.2 клетки/сек при ×1 (эталон — прежняя скорость официанта).
+ * Никаких множителей по типам NPC: все используют эту константу напрямую.
+ */
+export const WALK_CELLS_PER_SEC = 2.2
 const EAT_SEC = 15 // трапеза длится ровно 15 секунд
 const PATIENCE_SEC = 60 // терпение клиента ×2 (было 30)
 const PERFECT_SERVICE_SEC = 15
@@ -95,7 +100,6 @@ const PED_MAX = 4
 const PED_PEEK_CHANCE = 0.15 // базовый шанс «заглянуть»
 const PED_PEEK_REP_BONUS = 0.002 // +0.2% за каждую ⭐ репутации (кап +25%)
 const PED_PEEK_FADE_MS = 1400
-const PED_SPEED_FACTOR = 0.8 // чуть медленнее клиентов
 let pedTarget = 0 // сколько пешеходов держим на улице (2..4), 0 = ещё не бросали
 let pedSpawnCooldown = 0
 
@@ -569,7 +573,8 @@ function tickPedestrians(dtSec: number, now: number) {
   if (!pedTarget) pedTarget = PED_MIN + Math.floor(Math.random() * (PED_MAX - PED_MIN + 1))
 
   let changed = false
-  const step = WALK_CELLS_PER_SEC * PED_SPEED_FACTOR * dtSec
+  // та же единая скорость, что у клиентов/персонала (без множителей)
+  const step = WALK_CELLS_PER_SEC * dtSec
   const peekChance =
     PED_PEEK_CHANCE + Math.min(0.25, s.reputation * PED_PEEK_REP_BONUS)
 
