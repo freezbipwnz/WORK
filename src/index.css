@@ -1,0 +1,451 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* RestoCity palette (design.md §2) */
+    --cream: #FBF3E4;
+    --paper: #FDF9EE;
+    --wall: #EEDFC7;
+    --wall-dark: #DECBA9;
+    --floor-a: #F6E7CF;
+    --floor-b: #F1DEC2;
+    --kitchen-tile: #E3E9E2;
+    --kitchen-tile-b: #DAE2D8;
+    --terracotta: #D9835B;
+    --terracotta-deep: #C2693F;
+    --honey: #E8B44A;
+    --sage: #8FAE7C;
+    --berry: #C96F6F;
+    --sky: #8FB8C9;
+    --cocoa: #5C4633;
+    --cocoa-soft: #8A6F55;
+
+    /* shadcn/ui tokens mapped onto palette */
+    --background: 40 60% 94%;
+    --foreground: 28 29% 27%;
+    --card: 46 74% 96%;
+    --card-foreground: 28 29% 27%;
+    --popover: 46 74% 96%;
+    --popover-foreground: 28 29% 27%;
+    --primary: 20 61% 60%;
+    --primary-foreground: 46 74% 96%;
+    --secondary: 38 52% 88%;
+    --secondary-foreground: 28 29% 27%;
+    --muted: 38 40% 90%;
+    --muted-foreground: 30 23% 44%;
+    --accent: 92 24% 58%;
+    --accent-foreground: 46 74% 96%;
+    --destructive: 0 48% 61%;
+    --destructive-foreground: 46 74% 96%;
+    --border: 30 30% 82%;
+    --input: 30 30% 82%;
+    --ring: 20 61% 60%;
+    --radius: 1rem;
+    --sidebar-background: 46 74% 96%;
+    --sidebar-foreground: 28 29% 27%;
+    --sidebar-primary: 20 61% 60%;
+    --sidebar-primary-foreground: 46 74% 96%;
+    --sidebar-accent: 38 52% 88%;
+    --sidebar-accent-foreground: 28 29% 27%;
+    --sidebar-border: 30 30% 82%;
+    --sidebar-ring: 20 61% 60%;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+    overflow: hidden;
+  }
+
+  html {
+    /* отключаем double-tap zoom и «тянучку» на мобильных */
+    touch-action: manipulation;
+    overscroll-behavior: none;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  /* ===== Адаптивный масштаб UI (репорт: «на большом экране меню мелкое») =====
+     <768px — мобильный вид 1×; 768–1279px (планшет) ×1.25; ≥1280px (desktop) ×1.5.
+     Масштабируем корневой font-size: все rem-утилиты Tailwind (h-11, text-sm,
+     min-h-[44px], p-3…) растут пропорционально, px-значения сцены не трогаем. */
+  @media (min-width: 768px) {
+    html {
+      font-size: 125%;
+    }
+  }
+  @media (min-width: 1280px) {
+    html {
+      font-size: 150%;
+    }
+  }
+
+  body {
+    @apply text-foreground;
+    font-family: 'Nunito', system-ui, sans-serif;
+    touch-action: manipulation;
+    -webkit-touch-callout: none;
+    background-color: var(--cream);
+    /* «скатерть» — тканевый паттерн, ~2% контраст */
+    background-image: repeating-linear-gradient(
+        0deg,
+        rgba(92, 70, 51, 0.025) 0 2px,
+        transparent 2px 8px
+      ),
+      repeating-linear-gradient(
+        90deg,
+        rgba(92, 70, 51, 0.025) 0 2px,
+        transparent 2px 8px
+      );
+    user-select: none;
+  }
+
+  .font-display {
+    font-family: 'Baloo 2', system-ui, sans-serif;
+  }
+}
+
+@layer components {
+  /* ===== Жёсткий grid-каркас зон (design.md §6, game.md §8) ===== */
+  .game-frame {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    grid-template-areas: 'hud' 'scene' 'panel';
+    gap: 8px;
+    height: 100vh;
+    height: 100dvh;
+    width: 100%;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: calc(8px + env(safe-area-inset-top)) calc(8px + env(safe-area-inset-right))
+      calc(8px + env(safe-area-inset-bottom)) calc(8px + env(safe-area-inset-left));
+    overflow: hidden;
+  }
+  .zone-hud {
+    grid-area: hud;
+    position: relative;
+  }
+  .zone-scene {
+    grid-area: scene;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 0;
+    min-width: 0;
+  }
+  .zone-panel {
+    grid-area: panel;
+    position: relative;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Нижняя панель: высота в rem — растёт вместе с корневым font-size
+     (≈220px на мобильном, ~275px на планшете, ~330px на desktop) */
+  .panel-root {
+    height: 13.75rem;
+  }
+  @media (min-width: 1024px) {
+    .panel-root {
+      height: 15rem;
+    }
+  }
+
+  /* Desktop (≥1280px): панель — правый сайдбар (max ~560px), сцена получает
+     всю оставшуюся ширину/высоту; strict-zones grid auto/1fr сохраняется */
+  @media (min-width: 1280px) {
+    .game-frame {
+      grid-template-rows: auto minmax(0, 1fr);
+      grid-template-columns: minmax(0, 1fr) minmax(420px, 560px);
+      grid-template-areas: 'hud hud' 'scene panel';
+      max-width: 1600px;
+    }
+    .panel-root {
+      height: 100%;
+      max-height: 100%;
+    }
+    .panel-root .panel-tabs {
+      flex-wrap: wrap;
+    }
+  }
+
+  /* Телефон портрет: bottom-sheet — свёрнут 56px (шапка), раскрыт до 45dvh */
+  @media (max-width: 480px) and (orientation: portrait) {
+    .game-frame {
+      gap: 6px;
+    }
+    .panel-root {
+      height: auto;
+    }
+    .panel-root .panel-content {
+      display: none;
+    }
+    .panel-root.panel-expanded .panel-content {
+      display: block;
+      height: min(45dvh, 380px);
+    }
+  }
+
+  /* Телефон ландшафт: панель — правая колонка, сцена максимум */
+  @media (orientation: landscape) and (max-height: 500px) and (max-width: 900px) {
+    .game-frame {
+      grid-template-rows: auto minmax(0, 1fr);
+      grid-template-columns: minmax(0, 1fr) 220px;
+      grid-template-areas: 'hud hud' 'scene panel';
+      gap: 6px;
+    }
+    .panel-root {
+      height: 100%;
+      flex-direction: column;
+    }
+    .panel-root .panel-header {
+      flex-direction: column;
+      align-items: stretch;
+    }
+    .panel-root .panel-tabs,
+    .panel-root .panel-tabs > div {
+      flex-direction: column;
+    }
+    .panel-root .panel-content {
+      flex: 1;
+    }
+  }
+
+  /* Тост-зона: внутри зоны сцены, строго ниже HUD (§6.3) */
+  .toast-zone {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    top: 8px;
+    z-index: 50;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    max-width: min(90vw, 360px);
+    pointer-events: none;
+  }
+
+  /* hover-подъёмы отключены на тач-устройствах (§7) */
+  @media (hover: none) {
+    .hover-lift:hover {
+      transform: none;
+    }
+  }
+}
+
+@layer utilities {
+  /* Плоская тень-наклейка объекта на полу */
+  .shadow-sticker {
+    box-shadow: 0 4px 0 rgba(92, 70, 51, 0.12);
+  }
+  /* Тень панели */
+  .shadow-panel {
+    box-shadow: 0 6px 20px rgba(92, 70, 51, 0.14);
+  }
+  /* Внутренняя подсветка карточки */
+  .shadow-card-inset {
+    box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.6);
+  }
+  .outline-cozy {
+    outline: 2px solid rgba(92, 70, 51, 0.35);
+  }
+  .tnum {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* ---- Словарь анимаций (design.md §5) ---- */
+@keyframes pop-in {
+  from {
+    transform: scale(0.5);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+@keyframes float-up {
+  from {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateY(-56px);
+    opacity: 0;
+  }
+}
+@keyframes bounce-idle {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(-3px);
+  }
+}
+@keyframes walk-wiggle {
+  0%,
+  100% {
+    transform: rotate(-4deg);
+  }
+  50% {
+    transform: rotate(4deg);
+  }
+}
+@keyframes bubble-bob {
+  0%,
+  100% {
+    transform: translateY(-2px);
+  }
+  50% {
+    transform: translateY(2px);
+  }
+}
+@keyframes steam {
+  0% {
+    transform: translateY(0) scale(0.8);
+    opacity: 0;
+  }
+  30% {
+    opacity: 0.8;
+  }
+  100% {
+    transform: translateY(-20px) scale(1.1);
+    opacity: 0;
+  }
+}
+@keyframes ready-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(143, 174, 124, 0.7);
+  }
+  50% {
+    box-shadow: 0 0 0 12px rgba(143, 174, 124, 0);
+  }
+}
+@keyframes grid-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 0.9;
+  }
+}
+@keyframes leaf-sway {
+  0%,
+  100% {
+    transform: rotate(-2deg);
+  }
+  50% {
+    transform: rotate(2deg);
+  }
+}
+@keyframes bubble-rise {
+  0% {
+    transform: translateY(0);
+    opacity: 0.9;
+  }
+  100% {
+    transform: translateY(-18px);
+    opacity: 0;
+  }
+}
+@keyframes lamp-flicker {
+  0%,
+  92%,
+  100% {
+    opacity: 1;
+  }
+  95% {
+    opacity: 0.75;
+  }
+}
+@keyframes badge-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.35);
+  }
+}
+
+.anim-pop-in {
+  animation: pop-in 300ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+.anim-float-up {
+  animation: float-up 900ms ease-out both;
+}
+.anim-bounce-idle {
+  animation: bounce-idle 1.6s ease-in-out infinite alternate;
+}
+.anim-walk-wiggle {
+  animation: walk-wiggle 320ms ease-in-out infinite;
+}
+.anim-bubble-bob {
+  animation: bubble-bob 1.8s ease-in-out infinite;
+}
+.anim-ready-pulse {
+  animation: ready-pulse 1.2s ease-out infinite;
+}
+.anim-grid-pulse {
+  animation: grid-pulse 1.6s ease-in-out infinite;
+}
+.anim-leaf-sway {
+  animation: leaf-sway 3s ease-in-out infinite;
+}
+.anim-lamp-flicker {
+  animation: lamp-flicker 5s linear infinite;
+}
+.anim-badge-pulse {
+  animation: badge-pulse 1.2s ease-in-out infinite;
+}
+
+/* Посадка на стул: приседание 250ms, затем лёгкий seated-bob */
+@keyframes seat-squat {
+  0% {
+    transform: translateY(0) scaleY(1);
+  }
+  50% {
+    transform: translateY(6px) scaleY(0.85);
+  }
+  100% {
+    transform: translateY(4px) scaleY(1);
+  }
+}
+@keyframes seated-bob {
+  0%,
+  100% {
+    transform: translateY(4px);
+  }
+  50% {
+    transform: translateY(2px);
+  }
+}
+.anim-seated {
+  animation:
+    seat-squat 250ms ease-out,
+    seated-bob 2.2s ease-in-out 250ms infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .anim-bounce-idle,
+  .anim-walk-wiggle,
+  .anim-leaf-sway,
+  .anim-ready-pulse,
+  .anim-grid-pulse,
+  .anim-lamp-flicker {
+    animation: none;
+  }
+}
