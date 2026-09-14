@@ -3,7 +3,7 @@ import type { CSSProperties, ReactNode } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useGameStore } from '@/game/store'
 import { CURB_ROW, DOOR, HALL_H, HALL_W, STREET_ROWS, getItem, pxOffsetToCells, seatOffsets } from '@/game/catalog'
-import { isoX, isoY, zOrder, Z, SCENE_W, SCENE_H, WALL_H, TILE_W, TILE_H } from '@/game/iso'
+import { isoX, isoY, zOrder, Z, SCENE_W, SCENE_H, ORIGIN_Y, GRID_W, GRID_H, WALL_H, TILE_W, TILE_H } from '@/game/iso'
 import type { Client, Pedestrian, PlacedItem, StaffNpc, Stain } from '@/game/types'
 import { cn } from '@/lib/utils'
 import { CHAIR_SPRITE, CUSTOMER_SPRITES, DISH_SPRITES, ITEM_SPRITES, STAFF_SPRITES, customerSprite, spriteUrl } from './sprites'
@@ -385,7 +385,7 @@ function PlacedItemView({ item }: { item: PlacedItem }) {
           className="pointer-events-none absolute"
           style={{
             left: isoX(item.x, 0) - 16,
-            top: WALL_H - 56,
+            top: ORIGIN_Y - 56,
             zIndex: 1,
           }}
         >
@@ -1041,11 +1041,11 @@ function Floats() {
 /** Две задние стены высотой 96px + карниз/плинтус (§5.3, стены рисуются до пола) */
 function Walls() {
   // нижние кромки стен стоят РОВНО на дальних краях ромбовидного пола:
-  // общий угол — верхний вертекс клетки (0,0) = iso(-0.5,-0.5) = (256, 80);
-  // левая стена идёт вдоль края y=-0.5 до правого вертекса клетки (12,0) = (672, 288);
-  // правая (теневая) — вдоль края x=-0.5 до левого вертекса клетки (0,7) = (0, 208).
-  const L = { x0: 256, y0: WALL_H - TILE_H / 2, x1: 672, y1: 288 }
-  const R = { x0: 256, y0: WALL_H - TILE_H / 2, x1: 0, y1: 208 }
+  // общий угол — верхний вертекс клетки (0,0) = iso(-0.5,-0.5) = (480, 208);
+  // левая стена идёт вдоль края y=-0.5 до правого вертекса клетки (12,0) = (896, 416);
+  // правая (теневая) — вдоль края x=-0.5 до левого вертекса клетки (0,7) = (224, 336).
+  const L = { x0: isoX(-0.5, -0.5), y0: isoY(-0.5, -0.5), x1: isoX(GRID_W - 0.5, -0.5), y1: isoY(GRID_W - 0.5, -0.5) }
+  const R = { x0: isoX(-0.5, -0.5), y0: isoY(-0.5, -0.5), x1: isoX(-0.5, GRID_H - 0.5), y1: isoY(-0.5, GRID_H - 0.5) }
   return (
     <>
       {/* левая стена */}
@@ -1181,23 +1181,22 @@ function Door() {
 // ---------- окружение: земля, город, зелень ----------
 
 /**
- * Земля под всей сценой: мягкий градиент газона (вместо плоского бежевого
- * «в пустоте») + песчаный апрон-ромб вокруг здания ресторана, чтобы оно
- * стояло на земле. Рисуется ПЕРВЫМ (z ниже улиц/стен/предметов).
+ * Земля под всей сценой: мягкий градиент газона на ВЕСЬ новый фрейм
+ * (1120×736 — никакого «пустого бежевого» фона) + песчаный апрон вокруг
+ * здания ресторана и тротуара. Рисуется ПЕРВЫМ (z ниже улиц/стен/предметов).
  */
 function Ground() {
-  // апрон — ромб чуть шире футпринта пола (углы пола: (256,80),(672,288),(416,544),(0,208))
-  const cx = 336
-  const cy = 280
-  const k = 1.14
-  const apron = [
-    [256, 80],
-    [672, 288],
-    [416, 544],
-    [0, 208],
-  ]
-    .map(([x, y]) => `${cx + (x - cx) * k},${cy + (y - cy) * k}`)
-    .join(' ')
+  // апрон — параллелограмм вокруг пола и тротуара с обочиной: углы —
+  // верх пола iso(-0.5,-0.5), правый iso(12.5,-0.5), низ обочины
+  // iso(12.5,10.5), левый iso(-0.5,10.5); раздут на 7% от центроида
+  const T: [number, number] = [isoX(-0.5, -0.5), isoY(-0.5, -0.5)]
+  const R: [number, number] = [isoX(GRID_W - 0.5, -0.5), isoY(GRID_W - 0.5, -0.5)]
+  const B: [number, number] = [isoX(GRID_W - 0.5, CURB_ROW + 0.5), isoY(GRID_W - 0.5, CURB_ROW + 0.5)]
+  const L: [number, number] = [isoX(-0.5, CURB_ROW + 0.5), isoY(-0.5, CURB_ROW + 0.5)]
+  const cx = (T[0] + R[0] + B[0] + L[0]) / 4
+  const cy = (T[1] + R[1] + B[1] + L[1]) / 4
+  const k = 1.07
+  const apron = [T, R, B, L].map(([x, y]) => `${cx + (x - cx) * k},${cy + (y - cy) * k}`).join(' ')
   return (
     <svg className="absolute left-0 top-0" width={SCENE_W} height={SCENE_H} style={{ zIndex: 0 }} pointerEvents="none">
       <defs>
@@ -1207,9 +1206,9 @@ function Ground() {
           <stop offset="1" stopColor="#BED29A" />
         </linearGradient>
       </defs>
-      {/* запас слева (-96): сюда уходят сквозная дорога, зебра и пешеходы (overflow виден) */}
-      <rect x={-96} y={-40} width={SCENE_W + 136} height={SCENE_H + 80} fill="url(#groundGrad)" />
-      {/* песчаный апрон под рестораном */}
+      {/* газон — вся сцена */}
+      <rect x={0} y={0} width={SCENE_W} height={SCENE_H} fill="url(#groundGrad)" />
+      {/* песчаный апрон под рестораном и тротуаром */}
       <polygon points={apron} fill="#E6D6B0" />
       <polygon points={apron} fill="none" stroke="#D8C69E" strokeWidth={2} />
     </svg>
@@ -1218,18 +1217,30 @@ function Ground() {
 
 /**
  * Городское окружение: фоновые изо-коробки зданий (две грани + крыша),
- * приглушённые тёплые тона. Стоят за пределами пола: одно за дорогой
- * слева-сверху, два — за задней стеной справа-сверху; нижние части
- * перекрываются дорогой/стенами (z ниже стен, DOM — до них). Не кликабельны.
+ * приглушённые тёплые тона. Расположение (сцена 1120×736):
+ *  - верхний левый кластер — ЗА сквозной дорогой (она рисуется позже и
+ *    проходит перед их нижними этажами, как улица перед домами);
+ *  - за задней стеной справа-сверху (нижние этажи скрыты стеной);
+ *  - верхний край правее места входа дороги (дорога входит в сцену
+ *    на x≈493–762 верхней кромки) и правый край за рестораном.
+ * z ниже стен, DOM — до них. Не кликабельны.
  */
 function CityBackdrop() {
   const buildings: { cx: number; cy: number; w: number; h: number; roof: string; left: string; right: string }[] = [
-    // за задней стеной справа-сверху (нижние этажи скрыты стеной —
-    // виден «город за рестораном»); слева от угла (256,80) фон занят дорогой
-    { cx: 345, cy: -2, w: 96, h: 88, roof: '#D9C6A6', left: '#C9B48E', right: '#BBA67F' },
-    { cx: 438, cy: 18, w: 128, h: 112, roof: '#D8B9A0', left: '#C7A78C', right: '#B6957B' },
-    { cx: 586, cy: 44, w: 96, h: 78, roof: '#D5C4A8', left: '#C4B191', right: '#B3A181' },
-    { cx: 652, cy: 62, w: 76, h: 104, roof: '#CFC9B4', left: '#BEB79F', right: '#AEA78F' },
+    // верхний левый кластер — за дорогой (дорога проходит перед ними)
+    { cx: 140, cy: 90, w: 150, h: 140, roof: '#D8B9A0', left: '#C7A78C', right: '#B6957B' },
+    { cx: 330, cy: 55, w: 110, h: 100, roof: '#D9C6A6', left: '#C9B48E', right: '#BBA67F' },
+    { cx: 66, cy: 210, w: 96, h: 88, roof: '#D5C4A8', left: '#C4B191', right: '#B3A181' },
+    // за задней стеной справа-сверху (нижние этажи скрыты стеной)
+    { cx: 630, cy: 118, w: 96, h: 88, roof: '#D9C6A6', left: '#C9B48E', right: '#BBA67F' },
+    { cx: 740, cy: 150, w: 128, h: 112, roof: '#D8B9A0', left: '#C7A78C', right: '#B6957B' },
+    { cx: 862, cy: 192, w: 96, h: 78, roof: '#D5C4A8', left: '#C4B191', right: '#B3A181' },
+    { cx: 950, cy: 215, w: 76, h: 104, roof: '#CFC9B4', left: '#BEB79F', right: '#AEA78F' },
+    // верхний край правее дороги
+    { cx: 890, cy: 28, w: 130, h: 140, roof: '#D9C6A6', left: '#C9B48E', right: '#BBA67F' },
+    { cx: 1045, cy: 55, w: 100, h: 95, roof: '#D8B9A0', left: '#C7A78C', right: '#B6957B' },
+    // правый край за рестораном
+    { cx: 1010, cy: 340, w: 104, h: 120, roof: '#D5C4A8', left: '#C4B191', right: '#B3A181' },
   ]
   return (
     <svg className="absolute left-0 top-0" width={SCENE_W} height={SCENE_H} style={{ zIndex: 0 }} pointerEvents="none">
@@ -1279,21 +1290,36 @@ function Tree({ cx, cy, s }: { cx: number; cy: number; s: number }) {
 }
 
 /**
- * Зелень: деревья/кусты на фоновых газонах (за дорогой слева, за стеной
- * справа) + куст в пустом нижнем правом углу. z ниже стен/улиц.
+ * Зелень: деревья/кусты на газонах расширенной сцены — за дорогой слева,
+ * среди домов за стеной, на правом газоне за рестораном, на нижнем газоне
+ * под тротуаром и в нижнем левом углу (за выходом левой улицы). z ниже стен.
  */
 function Greenery() {
   return (
     <svg className="absolute left-0 top-0" width={SCENE_W} height={SCENE_H} style={{ zIndex: 0 }} pointerEvents="none">
-      {/* за задней стеной справа-сверху (слева фон занят дорогой) */}
-      <Bush cx={312} cy={12} r={11} />
-      <Tree cx={522} cy={66} s={38} />
-      <Bush cx={472} cy={64} r={14} />
-      <Bush cx={636} cy={118} r={15} />
-      <Tree cx={612} cy={148} s={34} />
-      {/* нижний правый угол (газон за тротуаром) */}
-      <Bush cx={352} cy={446} r={13} />
-      <Bush cx={398} cy={452} r={10} />
+      {/* за дорогой слева (дорога рисуется позже — проходит перед зеленью) */}
+      <Tree cx={245} cy={165} s={34} />
+      <Bush cx={120} cy={260} r={14} />
+      {/* среди домов за задней стеной */}
+      <Bush cx={590} cy={106} r={11} />
+      <Bush cx={985} cy={148} r={13} />
+      {/* правый газон за рестораном */}
+      <Tree cx={1000} cy={430} s={46} />
+      <Bush cx={945} cy={505} r={15} />
+      <Tree cx={1055} cy={580} s={36} />
+      <Bush cx={955} cy={640} r={13} />
+      {/* нижний газон под тротуаром */}
+      <Bush cx={280} cy={688} r={14} />
+      <Bush cx={352} cy={710} r={10} />
+      <Tree cx={520} cy={698} s={34} />
+      <Bush cx={700} cy={704} r={13} />
+      <Bush cx={862} cy={690} r={15} />
+      <Tree cx={950} cy={712} s={30} />
+      {/* нижний левый угол (за выходом левой улицы) */}
+      <Bush cx={82} cy={452} r={15} />
+      <Tree cx={152} cy={512} s={36} />
+      <Bush cx={58} cy={562} r={12} />
+      <Bush cx={192} cy={592} r={11} />
     </svg>
   )
 }
@@ -1302,14 +1328,15 @@ function Greenery() {
 
 /**
  * Тротуар: 2 ряда серых изо-плиток за ближним краем пола (y = 8, 9) + обочина
- * (y = 10, тёмная «дорога»). Рисуется ДО стен (z ниже стен), клетки,
- * упирающиеся в нижний край сцены, отрезаются (x + y ≤ 21).
+ * (y = 10, тёмная «дорога»). В расширенной сцене ряды продлены влево за угол
+ * здания (x от -1) и вправо (x до 15). Рисуется ДО стен (z ниже стен), клетки,
+ * упирающиеся в нижний край сцены, отрезаются (x + y ≤ 24).
  */
 function Street() {
   const tiles: ReactNode[] = []
   for (const y of [...STREET_ROWS, CURB_ROW]) {
-    for (let x = 0; x < HALL_W + 3; x++) {
-      if (x + y > 21) continue // за нижним краем сцены (456px)
+    for (let x = -1; x <= 15; x++) {
+      if (x + y > 24) continue // за нижним краем сцены (736px)
       const curb = y === CURB_ROW
       const odd = (x + y) % 2 === 1
       tiles.push(
@@ -1342,9 +1369,10 @@ function isoRect(x0: number, y0: number, x1: number, y1: number): string {
 function StreetLeft() {
   // полосы в мировых координатах (ось улицы — y, поперёк — x):
   // тротуар x∈[-4.6,-2.6] (пешеходная линия x=-3.0 лежит внутри),
-  // проезжая часть x∈[-6.8,-4.6]; протяжённость — за оба края сцены.
-  const Y0 = -4.0
-  const Y1 = 6.2
+  // проезжая часть x∈[-6.8,-4.6]. В расширенной сцене улица пересекает её
+  // насквозь: входит через верхний край (x≈493–762) и уходит за левый.
+  const Y0 = -13.0
+  const Y1 = 14.5
   const walk = isoRect(-4.6, Y0, -2.6, Y1)
   const road = isoRect(-6.8, Y0, -4.6, Y1)
   // бордюры

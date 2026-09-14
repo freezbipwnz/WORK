@@ -15,25 +15,36 @@ export const PAD_BOTTOM = 24
 export const GRID_W = HALL_W + KITCHEN_W // 13
 export const GRID_H = HALL_H // 8
 
-/** Поле сцены при k=1 (design.md §5.1): 672×456 */
-export const SCENE_W = (GRID_W + GRID_H) * (TILE_W / 2) // 672
-export const SCENE_H = WALL_H + (GRID_W + GRID_H) * (TILE_H / 2) + PAD_BOTTOM // 456
+// --- Расширенное окно видимости мира ---
+// Сцена увеличена ~1.65× (было 672×456): вокруг ресторана видны город,
+// продолжение дороги и газоны. Мировые координаты НЕ меняются — проекция
+// просто смещена (origin) и добавлены поля вокруг старого фрейма.
+/** Поля вокруг старого фрейма 672×456, px */
+export const PAD_LEFT = 224
+export const PAD_TOP = 128
+export const PAD_RIGHT = 224
+export const PAD_EXTRA_BOTTOM = 152
 
-/** Смещение origin: центр клетки (0,0) → (ORIGIN_X, WALL_H) */
-export const ORIGIN_X = GRID_H * (TILE_W / 2) // 256
+/** Поле сцены при k=1: 1120×736 */
+export const SCENE_W = (GRID_W + GRID_H) * (TILE_W / 2) + PAD_LEFT + PAD_RIGHT // 1120
+export const SCENE_H = WALL_H + (GRID_W + GRID_H) * (TILE_H / 2) + PAD_BOTTOM + PAD_TOP + PAD_EXTRA_BOTTOM // 736
+
+/** Смещение origin: центр клетки (0,0) → (ORIGIN_X, ORIGIN_Y) */
+export const ORIGIN_X = GRID_H * (TILE_W / 2) + PAD_LEFT // 480
+export const ORIGIN_Y = WALL_H + PAD_TOP // 224
 
 /** Центр клетки (x, y) → экранные px внутри сцены (дробные координаты ок) */
 export function isoX(x: number, y: number): number {
   return ORIGIN_X + (x - y) * (TILE_W / 2)
 }
 export function isoY(x: number, y: number): number {
-  return WALL_H + (x + y) * (TILE_H / 2)
+  return ORIGIN_Y + (x + y) * (TILE_H / 2)
 }
 
 /** Обратная проекция: px внутри сцены → ближайшая клетка сетки */
 export function screenToCell(sx: number, sy: number): { x: number; y: number } {
   const u = (sx - ORIGIN_X) / (TILE_W / 2) // = x - y
-  const v = (sy - WALL_H) / (TILE_H / 2) // = x + y
+  const v = (sy - ORIGIN_Y) / (TILE_H / 2) // = x + y
   return { x: Math.round((u + v) / 2), y: Math.round((v - u) / 2) }
 }
 
