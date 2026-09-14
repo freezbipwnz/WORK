@@ -189,6 +189,292 @@ export const CATALOG: CatalogItem[] = [
     facadeBonus: 4,
     description: '+4% к притоку гостей. Тёплый свет у двери.',
   },
+  // --- Набор «Италия» ---
+  {
+    id: 'table_trattoria',
+    name: 'Столик-траттория',
+    emoji: '🍽️',
+    category: 'table',
+    zone: 'hall',
+    price: 900,
+    level: 5,
+    w: 1,
+    h: 1,
+    seats: 2,
+    description: 'Мраморная столешница на двоих. Как в Риме.',
+  },
+  {
+    id: 'table_tuscany',
+    name: 'Тосканский стол',
+    emoji: '🍇',
+    category: 'table',
+    zone: 'hall',
+    price: 3800,
+    level: 12,
+    w: 2,
+    h: 2,
+    seats: 4,
+    description: 'Массивный стол из оливкового дерева на четверых.',
+  },
+  {
+    id: 'olive_tree',
+    name: 'Оливковое дерево',
+    emoji: '🫒',
+    category: 'decor',
+    zone: 'hall',
+    price: 1800,
+    level: 9,
+    w: 1,
+    h: 1,
+    atmosphere: 2,
+    description: '+2% атмосферы. Кусочек Тосканы в зале.',
+  },
+  {
+    id: 'wine_rack',
+    name: 'Винный шкаф',
+    emoji: '🍷',
+    category: 'decor',
+    zone: 'hall',
+    price: 2200,
+    level: 10,
+    w: 2,
+    h: 1,
+    atmosphere: 2,
+    description: '+2% атмосферы. Кьянти урожая лучших лет.',
+  },
+  {
+    id: 'candles',
+    name: 'Свечи',
+    emoji: '🪔',
+    category: 'decor',
+    zone: 'hall',
+    price: 700,
+    level: 6,
+    w: 1,
+    h: 1,
+    atmosphere: 1,
+    description: '+1% атмосферы. Мягкий живой свет.',
+  },
+  // --- Набор «Кафе» ---
+  {
+    id: 'bar_counter',
+    name: 'Барная стойка',
+    emoji: '🍸',
+    category: 'decor',
+    zone: 'hall',
+    price: 1600,
+    level: 7,
+    w: 1,
+    h: 1,
+    atmosphere: 2,
+    description: '+2% атмосферы. Компактная стойка для кофе и болтовни.',
+  },
+  {
+    id: 'coffee_table',
+    name: 'Кофейный столик',
+    emoji: '☕',
+    category: 'table',
+    zone: 'hall',
+    price: 800,
+    level: 4,
+    w: 1,
+    h: 1,
+    seats: 2,
+    description: 'Столик для неспешного капучино на двоих.',
+  },
+  {
+    id: 'menu_board',
+    name: 'Меню-доска',
+    emoji: '📋',
+    category: 'decor',
+    zone: 'hall',
+    price: 650,
+    level: 4,
+    w: 1,
+    h: 1,
+    atmosphere: 1,
+    description: '+1% атмосферы. Мелом написано «блюдо дня».',
+  },
+  {
+    id: 'display_case',
+    name: 'Торговая витрина',
+    emoji: '🧁',
+    category: 'decor',
+    zone: 'hall',
+    price: 2400,
+    level: 9,
+    w: 2,
+    h: 1,
+    atmosphere: 2,
+    description: '+2% атмосферы. Десерты так и манят.',
+  },
+  // --- Набор «Люкс» ---
+  {
+    id: 'table_gold',
+    name: 'Золотой стол',
+    emoji: '👑',
+    category: 'table',
+    zone: 'hall',
+    price: 9000,
+    level: 14,
+    w: 2,
+    h: 2,
+    seats: 4,
+    description: 'Позолота и бархат. Стол для самых важных гостей.',
+  },
+  {
+    id: 'chandelier',
+    name: 'Люстра',
+    emoji: '✨',
+    category: 'decor',
+    zone: 'hall',
+    price: 6000,
+    level: 12,
+    w: 1,
+    h: 1,
+    atmosphere: 4,
+    description: '+4% атмосферы. Хрусталь переливается над залом.',
+  },
+  {
+    id: 'fireplace',
+    name: 'Камин',
+    emoji: '🔥',
+    category: 'decor',
+    zone: 'hall',
+    price: 7500,
+    level: 13,
+    w: 2,
+    h: 1,
+    atmosphere: 4,
+    description: '+4% атмосферы. Треск дров и уют.',
+  },
+  {
+    id: 'grand_piano',
+    name: 'Рояль',
+    emoji: '🎹',
+    category: 'decor',
+    zone: 'hall',
+    price: 12000,
+    level: 15,
+    w: 2,
+    h: 1,
+    atmosphere: 5,
+    description: '+5% атмосферы. Живая музыка по вечерам.',
+  },
+  // --- Гем-эксклюзивы (только за 💎, за монеты не продаются: price = 0) ---
+  {
+    id: 'neon_sign',
+    name: 'Неоновая вывеска',
+    emoji: '🌟',
+    category: 'facade',
+    zone: 'street',
+    price: 0,
+    gemPrice: 15,
+    level: 5,
+    w: 1,
+    h: 1,
+    facadeBonus: 8,
+    description: '+8% к притоку гостей. Эксклюзив за 💎. Видно с другого конца города!',
+  },
+  {
+    id: 'fountain',
+    name: 'Фонтан',
+    emoji: '⛲',
+    category: 'decor',
+    zone: 'hall',
+    price: 0,
+    gemPrice: 40,
+    level: 10,
+    w: 2,
+    h: 2,
+    atmosphere: 6,
+    description: '+6% атмосферы. Эксклюзив за 💎. Журчание воды и монетка на счастье.',
+  },
+  {
+    id: 'aqua_maxi',
+    name: 'Аквариум-макси',
+    emoji: '🐠',
+    category: 'decor',
+    zone: 'hall',
+    price: 0,
+    gemPrice: 80,
+    level: 12,
+    w: 2,
+    h: 1,
+    atmosphere: 7,
+    description: '+7% атмосферы. Эксклюзив за 💎. Целый коралловый риф в зале.',
+  },
+  {
+    id: 'chef_statue',
+    name: 'Золотая статуя шефа',
+    emoji: '🏆',
+    category: 'decor',
+    zone: 'hall',
+    price: 0,
+    gemPrice: 150,
+    level: 15,
+    w: 1,
+    h: 1,
+    atmosphere: 9,
+    description: '+9% атмосферы. Эксклюзив за 💎. Легенда кухни, отлитая в золоте.',
+  },
+  // --- Сезонные предметы (фильтрация по сезону — в UI магазина) ---
+  {
+    id: 'christmas_tree',
+    name: 'Ёлка',
+    emoji: '🎄',
+    category: 'decor',
+    zone: 'hall',
+    price: 2000,
+    level: 5,
+    w: 1,
+    h: 1,
+    atmosphere: 3,
+    season: 'winter',
+    description: 'Сезонный (зима). +3% атмосферы. Пахнет мандаринами и праздником.',
+  },
+  {
+    id: 'garland',
+    name: 'Гирлянда',
+    emoji: '🎊',
+    category: 'decor',
+    zone: 'hall',
+    price: 900,
+    level: 3,
+    w: 1,
+    h: 1,
+    atmosphere: 2,
+    season: 'winter',
+    description: 'Сезонный (зима). +2% атмосферы. Огоньки мигают в такт празднику.',
+  },
+  {
+    id: 'veranda_umbrella',
+    name: 'Веранда-зонтик',
+    emoji: '⛱️',
+    category: 'facade',
+    zone: 'street',
+    price: 1500,
+    level: 6,
+    w: 1,
+    h: 1,
+    facadeBonus: 6,
+    season: 'summer',
+    description: 'Сезонный (лето). +6% к притоку гостей. Тень и прохлада у входа.',
+  },
+  {
+    id: 'flower_arch',
+    name: 'Цветочная арка',
+    emoji: '💐',
+    category: 'facade',
+    zone: 'street',
+    price: 1800,
+    level: 7,
+    w: 1,
+    h: 1,
+    facadeBonus: 6,
+    season: 'summer',
+    description: 'Сезонный (лето). +6% к притоку гостей. Розы вьются над входом.',
+  },
 ]
 
 export const STAFF_DEFS: StaffDef[] = [
@@ -266,7 +552,7 @@ export function getItem(id: string): CatalogItem | undefined {
   return CATALOG.find((i) => i.id === id)
 }
 
-// --- Геометрия сцены ---
+// --- Геометрия сцены (базовые размеры — уровень расширения 0) ---
 export const HALL_W = 10
 export const HALL_H = 8
 export const KITCHEN_W = 3
@@ -274,10 +560,61 @@ export const TILE = 64
 /** Клетка двери (слева от зала) */
 export const DOOR = { x: -1, y: 4 }
 
+// --- Расширение помещения (ТЗ §1.2: покупка расширений зала за монеты) ---
+export interface ExpansionDef {
+  /** Минимальный уровень ресторана для покупки */
+  level: number
+  /** Цена в монетах */
+  price: number
+  /** Размер зала после покупки (кухня — всегда KITCHEN_W колонок справа от зала) */
+  hallW: number
+  hallH: number
+  /** Что добавляется (карточка магазина) */
+  adds: string
+}
+
+/**
+ * Ступени расширения по порядку покупки. Кухня остаётся 3 колонками справа
+ * от зала и сдвигается вместе с его шириной (см. hallWAt ниже).
+ */
+export const EXPANSIONS: readonly ExpansionDef[] = [
+  { level: 5, price: 800, hallW: 12, hallH: 8, adds: '+2 колонки зала' },
+  { level: 10, price: 2500, hallW: 14, hallH: 8, adds: '+2 колонки зала' },
+  { level: 15, price: 6000, hallW: 14, hallH: 10, adds: '+2 ряда зала' },
+]
+export const MAX_EXPANSION = EXPANSIONS.length
+
+/** Ширина зала (клеток) на уровне расширения exp (0 — базовая сетка) */
+export function hallWAt(exp: number): number {
+  return exp <= 0 ? HALL_W : EXPANSIONS[Math.min(exp, MAX_EXPANSION) - 1].hallW
+}
+/** Высота зала (клеток) на уровне расширения exp (0 — базовая сетка) */
+export function hallHAt(exp: number): number {
+  return exp <= 0 ? HALL_H : EXPANSIONS[Math.min(exp, MAX_EXPANSION) - 1].hallH
+}
+/** Ширина всей сетки проходимости (зал + кухня) на уровне расширения exp */
+export function gridWAt(exp: number): number {
+  return hallWAt(exp) + KITCHEN_W
+}
+/** Высота сетки проходимости на уровне расширения exp */
+export function gridHAt(exp: number): number {
+  return hallHAt(exp)
+}
+
 // --- Улица и фасад ---
-/** Нижняя площадка у входа: 2 ряда клеток за ближним краем пола (y = 8, 9) + обочина (y = 10) */
+/** Нижняя площадка у входа: 2 ряда клеток за ближним краем пола + обочина.
+ *  Базовые значения (расширение 0): ряды y = 8, 9, обочина y = 10 */
 export const STREET_ROWS = [HALL_H, HALL_H + 1] as const // [8, 9]
 export const CURB_ROW = HALL_H + 2 // 10 — обочина (темнее, «дорога»)
+/** Ряды тротуара на уровне расширения exp (следуют за ближним краем пола) */
+export function streetRowsAt(exp: number): readonly [number, number] {
+  const hh = hallHAt(exp)
+  return [hh, hh + 1]
+}
+/** Обочина («дорога») на уровне расширения exp */
+export function curbRowAt(exp: number): number {
+  return hallHAt(exp) + 2
+}
 /**
  * Левая улица (со стороны двери): полоса ЗА левой стеной, вдоль неё —
  * от верхнего края сцены мимо двери за левый край. Рисуется кодом (StreetLeft)
@@ -287,8 +624,9 @@ export const CURB_ROW = HALL_H + 2 // 10 — обочина (темнее, «д�
  * кромки стены: ноги скрыты стеной, над ней виден торс (человек за зданием),
  * а за торцом стены (X < 0) фигура видна целиком.
  * Границы спавна/деспавна подобраны под расширенную сцену (1120×736,
- * ORIGIN_X=480, ORIGIN_Y=224): спавн — фигура целиком за верхним краем
- * (стопы на y<0 при world y≤-11), деспавн — целиком за левым краем.
+ * ORIGIN_X=448, ORIGIN_Y=224 — origin по центру максимальной сетки): спавн —
+ * фигура целиком за верхним краем (стопы на y<0 при world y≤-11), деспавн —
+ * целиком за левым краем.
  */
 export const PED_LANE_X = -3.0
 /** Спавн пешехода (за верхним краем сцены) */
@@ -300,13 +638,18 @@ export const PED_DOOR_ROW = DOOR.y // 4
 /**
  * Фасадная зона: клетки первого ряда тротуара рядом с колонной двери.
  * (Колонки x<0 в этой проекции перекрыты левой стеной, поэтому зона —
- * на видимом ближнем краю у входа.)
+ * на видимом ближнем краю у входа.) Базовая зона (расширение 0): y = 8.
  */
 export const FACADE_ZONE = { y: HALL_H, x0: 1, x1: 4 } as const
+/** Фасадная зона на уровне расширения exp (ряд тротуара следует за полом) */
+export function facadeZoneAt(exp: number): { y: number; x0: number; x1: number } {
+  return { y: hallHAt(exp), x0: FACADE_ZONE.x0, x1: FACADE_ZONE.x1 }
+}
 
 /** Клетка входит в фасадную зону (только здесь можно ставить предметы фасада) */
-export function isFacadeCell(x: number, y: number): boolean {
-  return y === FACADE_ZONE.y && x >= FACADE_ZONE.x0 && x <= FACADE_ZONE.x1
+export function isFacadeCell(x: number, y: number, exp: number): boolean {
+  const z = facadeZoneAt(exp)
+  return y === z.y && x >= z.x0 && x <= z.x1
 }
 
 /** Суммарный бонус фасада к частоте спавна клиентов, % (каждый предмет +4, кап +20) */
@@ -407,12 +750,41 @@ export const DAILY_QUEST_POOL: DailyQuestDef[] = [
   { title: 'Шопинг', description: 'Купи предмет в магазине', stat: 'itemsBought', target: 1, reward: 80, xpReward: 25 },
   { title: 'Вкуснятина!', description: 'Получи 3 отзыва 😋', stat: 'goodReviews', target: 3, reward: 100, xpReward: 30 },
   { title: 'Чистюля', description: 'Убери 5 пятен грязи', stat: 'stainsCleaned', target: 5, reward: 150, xpReward: 30 },
+  // --- Квесты по счётчикам доставки/чаевых/групп/VIP ---
+  { title: 'Курьерский день', description: 'Собери 2 доставки 🛵', stat: 'deliveriesDone', target: 2, reward: 150, xpReward: 40 },
+  { title: 'Щедрые гости', description: 'Получи 100🪙 чаевых', stat: 'tipsEarned', target: 100, reward: 120, xpReward: 35 },
+  { title: 'Компания за столом', description: 'Обслужи 2 группы гостей', stat: 'groupsServed', target: 2, reward: 150, xpReward: 40 },
+  { title: 'VIP-день', description: 'Обслужи 1 VIP 👑', stat: 'vipServed', target: 1, reward: 200, xpReward: 50 },
 ]
 
 /** Ключ даты по Москве (UTC+3): YYYY-MM-DD */
 export function mskDateKey(now = Date.now()): string {
   const d = new Date(now + 3 * 3600_000)
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`
+}
+
+// --- Сезонность предметов каталога ---
+export type Season = NonNullable<CatalogItem['season']>
+
+const SEASON_MONTHS: Record<Season, number[]> = {
+  winter: [12, 1, 2],
+  spring: [3, 4, 5],
+  summer: [6, 7, 8],
+  autumn: [9, 10, 11],
+}
+
+/** Текущий сезон по месяцу московского времени */
+export function currentSeason(now = Date.now()): Season {
+  const month = Number(mskDateKey(now).slice(5, 7))
+  for (const [season, months] of Object.entries(SEASON_MONTHS)) {
+    if (months.includes(month)) return season as Season
+  }
+  return 'winter'
+}
+
+/** Сезонный предмет доступен только в свой сезон; обычные — всегда */
+export function isSeasonActive(item: CatalogItem, now = Date.now()): boolean {
+  return !item.season || item.season === currentSeason(now)
 }
 
 /** 3 случайных ежедневных квеста из пула */

@@ -12,8 +12,13 @@ export const WALL_H = 96
 /** Запас снизу под тени/бабблы */
 export const PAD_BOTTOM = 24
 
-export const GRID_W = HALL_W + KITCHEN_W // 13
-export const GRID_H = HALL_H // 8
+// --- Сетка: сцена изначально размера МАКСИМАЛЬНОГО расширения ---
+// Вьюпорт (GameScreen) вписывает сцену целиком (fit-to-view), поэтому размер
+// на лету не пересчитывается: при покупке расширения зал просто занимает
+// больше места на той же сцене. Максимальная сетка: база 13×8 + 4 колонки
+// и 2 ряда расширений (ТЗ §1.2) = 17×10.
+export const GRID_W_MAX = HALL_W + KITCHEN_W + 4 // 17
+export const GRID_H_MAX = HALL_H + 2 // 10
 
 // --- Расширенное окно видимости мира ---
 // Сцена увеличена ~1.65× (было 672×456): вокруг ресторана видны город,
@@ -25,12 +30,17 @@ export const PAD_TOP = 128
 export const PAD_RIGHT = 224
 export const PAD_EXTRA_BOTTOM = 152
 
-/** Поле сцены при k=1: 1120×736 */
-export const SCENE_W = (GRID_W + GRID_H) * (TILE_W / 2) + PAD_LEFT + PAD_RIGHT // 1120
-export const SCENE_H = WALL_H + (GRID_W + GRID_H) * (TILE_H / 2) + PAD_BOTTOM + PAD_TOP + PAD_EXTRA_BOTTOM // 736
+/** Поле сцены при k=1: 1120×736 — размер максимального расширения (не меняется) */
+export const SCENE_W = (HALL_W + KITCHEN_W + HALL_H) * (TILE_W / 2) + PAD_LEFT + PAD_RIGHT // 1120
+export const SCENE_H = WALL_H + (HALL_W + KITCHEN_W + HALL_H) * (TILE_H / 2) + PAD_BOTTOM + PAD_TOP + PAD_EXTRA_BOTTOM // 736
 
-/** Смещение origin: центр клетки (0,0) → (ORIGIN_X, ORIGIN_Y) */
-export const ORIGIN_X = GRID_H * (TILE_W / 2) + PAD_LEFT // 480
+/**
+ * Смещение origin: центр клетки (0,0) → (ORIGIN_X, ORIGIN_Y).
+ * Origin строго по центру МАКСИМАЛЬНОЙ сетки: мебель и стены строятся от своего
+ * реального (0,0), поэтому при покупке расширения НИЧЕГО не съезжает — новые
+ * клетки прирастают справа и снизу, ресторан остаётся на месте сцены.
+ */
+export const ORIGIN_X = Math.round(SCENE_W / 2 - ((GRID_W_MAX - GRID_H_MAX) * TILE_W) / 4) // 448
 export const ORIGIN_Y = WALL_H + PAD_TOP // 224
 
 /** Центр клетки (x, y) → экранные px внутри сцены (дробные координаты ок) */

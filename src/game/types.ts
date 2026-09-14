@@ -30,6 +30,10 @@ export interface CatalogItem {
   isStove?: boolean
   /** Фасад: +N% к частоте спавна клиентов (аддитивно, кап +20%) */
   facadeBonus?: number
+  /** Эксклюзив за кристаллы 💎 (магазин за гемы); за монеты не продаётся */
+  gemPrice?: number
+  /** Сезонный предмет каталога */
+  season?: 'winter' | 'spring' | 'summer' | 'autumn'
   description: string
 }
 
@@ -112,6 +116,8 @@ export interface Client {
   /** Фаза eating: старт/конец трапезы (ms, Date.now); длительность ровно 15с */
   eatStart?: number
   eatEnd?: number
+  /** Особый гость (фаза событий): критик / именинник */
+  guestKind?: 'critic' | 'birthday'
 }
 
 export type NpcPhase =
@@ -212,6 +218,23 @@ export interface Quest {
   claimed: boolean
 }
 
+/** Активный отзыв ресторанного критика: звёзды и момент окончания эффекта */
+export interface CriticReview {
+  stars: number
+  /** Момент (ms, Date.now), после которого эффект отзыва заканчивается */
+  until: number
+}
+
+/** Прогресс кулинарного фестиваля недели (сброс при смене ISO-недели) */
+export interface FestivalState {
+  /** Ключ недели: YYYY-Www (по московскому времени) */
+  weekKey: string
+  /** Накоплено порций за неделю */
+  portions: number
+  /** Индексы забранных наградных тиров (0..3) */
+  claimedTiers: number[]
+}
+
 export type FloatKind = 'coin' | 'xp' | 'rep-down'
 
 export interface FloatText {
@@ -277,6 +300,18 @@ export interface GameStats {
   levelReached: number
   /** Максимум атмосферы, % */
   maxAtmosphere: number
+  /** Завершённых заказов-доставок 🛵 */
+  deliveriesDone: number
+  /** Сумма чаевых в монетах (без чека и бонуса «идеально») */
+  tipsEarned: number
+  /** Обслужено групп (count по лидеру, один раз за группу) */
+  groupsServed: number
+  /** Обслужено критиков (фаза событий) */
+  criticsServed: number
+  /** Проведено дней рождения (фаза событий) */
+  birthdaysHosted: number
+  /** Пройдено проверок санитарии (фаза событий) */
+  inspectionsPassed: number
 }
 
 export interface GameState {
@@ -332,6 +367,14 @@ export interface GameState {
   inventory: Record<string, number>
   /** Уровни плит: stoveUid → 1..5 (скорость ×0.85^(level-1)); persist, миграция → 1 */
   stoveLevels: Record<string, number>
+  /** Уровень расширения зала 0..MAX_EXPANSION (ТЗ §1.2); persist, миграция старых сейвов → 0 */
+  expansion: number
   /** uid плиты с открытым попапом апгрейда (тап по плите), null = закрыт */
   stovePopupUid: string | null
+  /** Полученные достижения 🏆 (id из achievements.ts); прогресс считается на лету из stats */
+  claimedAchievements: string[]
+  /** Активный отзыв критика (persist; null — нет действующего эффекта) */
+  criticReview: CriticReview | null
+  /** Кулинарный фестиваль недели (persist; миграция на лету при смене недели) */
+  festival: FestivalState
 }

@@ -16,14 +16,14 @@ import {
   CLIENT_COLORS,
   CLIENT_FACES,
   DOOR,
-  HALL_H,
-  HALL_W,
   PARTY_CHECK_FACTOR,
   checkAmount,
   clientsPerMinute,
   cookDuration,
   facadeBonusPct,
   getItem,
+  hallHAt,
+  hallWAt,
   maxConcurrentClients,
   partyChance,
   repPerClient,
@@ -45,6 +45,7 @@ import {
   rollDeliveryOrder,
   rollNextDelivery,
 } from './delivery'
+import { festivalDishEmoji, FESTIVAL_TARGET } from './festival'
 
 type Store = typeof useGameStore
 
@@ -86,6 +87,76 @@ function rollNextRush(now: number): number {
 const STAIN_CHANCE = 0.35
 const CLEAN_CLEANER_MS = 6000 // уборщик: ~6с на пятно (тап игрока 1.5с — задаётся в store.cleanStain)
 
+// --- Ресторанный критик 📝 (анонимный) ---
+const CRITIC_CHANCE = 0.03 // шанс при спавне
+const CRITIC_MIN_LEVEL = 4
+const CRITIC_REVIEW_MS = 10 * 60_000 // эффект отзыва — 10 минут реального времени
+
+/**
+ * Оценка отзыва критика 1–5★: анонимный гость оценивает остаток терпения при
+ * подаче, чистоту зала (активные пятна в момент визита) и атмосферу.
+ * Ушёл злым — строго 1★.
+ */
+export function criticStarsFor(opts: {
+  angry: boolean
+  /** Остаток терпения 0..1 на момент ухода (после подачи терпение не тикает) */
+  patienceRatio: number
+  /** Активных пятен (без уборки) в зале */
+  activeStains: number
+  /** Атмосфера, % */
+  atmosphere: number
+}): number {
+  if (opts.angry) return 1
+  let score = 3
+  if (opts.patienceRatio >= 0.5) score += 1
+  else if (opts.patienceRatio < 0.15) score -= 1
+  if (opts.activeStains >= 4) score -= 2
+  else if (opts.activeStains >= 2) score -= 1
+  if (opts.atmosphere >= 25) score += 1
+  else if (opts.atmosphere < 8) score -= 1
+  return Math.max(1, Math.min(5, score))
+}
+
+/** Множитель частоты спавна клиентов от активного отзыва критика */
+export function criticReviewMult(stars: number): number {
+  return stars >= 5 ? 1.25 : stars === 4 ? 1.1 : stars === 3 ? 1 : stars === 2 ? 0.9 : 0.8
+}
+
+/** Пояснение эффекта отзыва для тоста */
+function criticReviewSuffix(stars: number): string {
+  return stars === 5
+    ? 'Гостей больше (+25%) на 10 мин'
+    : stars === 4
+      ? 'Гостей больше (+10%) на 10 мин'
+      : stars === 3
+        ? 'Без эффекта на поток'
+        : stars === 2
+          ? 'Гостей меньше (−10%) на 10 мин'
+          : 'Гостей меньше (−20%) на 10 мин'
+}
+
+// --- День рождения 🎂 ---
+const BIRTHDAY_CHANCE = 0.08 // шанс, что группа пришла на праздник
+const BIRTHDAY_CHECK_MULT = 1.5 // чек группы ×1.5
+const BIRTHDAY_TIP_MULT = 1.5 // чаевые имениннику ×1.5
+const BIRTHDAY_GEM_CHANCE = 0.25 // шанс +1💎 подарком
+
+// --- Санитарная инспекция 🧾 ---
+const INSPECTION_MIN_LEVEL = 6
+const INSPECTION_MIN_GAP_MS = 15 * 60_000 // раз в 15–25 минут реального времени
+const INSPECTION_MAX_GAP_MS = 25 * 60_000
+const INSPECTION_STAIN_LIMIT = 3 // столько активных пятен — штраф
+let nextInspectionAt = 0 // момент следующей инспекции (ms), 0 = не назначена
+
+function rollNextInspection(now: number): number {
+  return now + INSPECTION_MIN_GAP_MS + Math.random() * (INSPECTION_MAX_GAP_MS - INSPECTION_MIN_GAP_MS)
+}
+
+/** Форсирование ближайшей инспекции (для автотестов/инструментов) */
+export function forceNextInspectionAt(at: number): void {
+  nextInspectionAt = at
+}
+
 /** Лимит активных пятен: 3 + уровень/5 (макс 8) */
 export function stainLimit(level: number): number {
   return Math.min(8, 3 + Math.floor(level / 5))
@@ -107,6 +178,7 @@ let pedSpawnCooldown = 0
 export function resetSimulation() {
   spawnAccum = 0
   nextRushAt = 0
+  nextInspectionAt = 0
   lastIngToastAt = 0
   pedTarget = 0
   pedSpawnCooldown = 0
@@ -117,6 +189,7 @@ export function resetSimulation() {
 function shiftRealtimeTimers(ms: number) {
   if (ms <= 0) return
   if (nextRushAt) nextRushAt += ms
+  if (nextInspectionAt) nextInspectionAt += ms
   const s = storeRef?.getState()
   if (!s) return
   storeRef!.setState({
@@ -178,12 +251,14 @@ function maybeSpawnStain(tableUid: string | undefined, now: number) {
   let x = table.x
   let y = table.y
   if (kind === 'floor') {
+    const hw = hallWAt(s.expansion)
+    const hh = hallHAt(s.expansion)
     const cells: [number, number][] = [
       [table.x - 1, table.y],
       [table.x, table.y + 1],
       [table.x + 1, table.y],
       [table.x, table.y - 1],
-    ].filter(([cx, cy]) => cx >= 0 && cy >= 0 && cx < HALL_W && cy < HALL_H && isWalkable(s.items, cx, cy)) as [number, number][]
+    ].filter(([cx, cy]) => cx >= 0 && cy >= 0 && cx < hw && cy < hh && isWalkable(s.items, cx, cy, s.expansion)) as [number, number][]
     if (!cells.length) return
     ;[x, y] = pick(cells)
   }
@@ -237,7 +312,7 @@ function freeTablesFor(s: ReturnType<Store['getState']>, vip: boolean, excludeCl
 /** Попытка посадить VIP за престижный стол; null — свободного престижного стола нет */
 function seatVip(s: ReturnType<Store['getState']>, c: Client): Client | null {
   for (const t of freeTablesFor(s, true, c.id)) {
-    const path = doorPathToItem(s.items, t)
+    const path = doorPathToItem(s.items, t, s.expansion)
     if (path && path.length) {
       const [first, ...rest] = path
       return {
@@ -328,7 +403,7 @@ function cookWorkCell(
   if (!uid) return null
   const stove = s.items.find((i) => i.uid === uid)
   if (!stove) return null
-  const adj = [...adjacentWalkableKeys(s.items, stove)].sort()
+  const adj = [...adjacentWalkableKeys(s.items, stove, s.expansion)].sort()
   for (const key of adj) {
     if (takenCells.has(key)) continue
     takenCells.add(key)
@@ -345,7 +420,9 @@ function cookStandbyCell(
   cookIndex: number,
   takenCells: Set<string>,
 ): PathCell {
-  const base = findNearestWalkable(s.items, 11, 5, 6) ?? { x: 11, y: 5 }
+  // середина кухни: первая колонка кухни + 1 (сдвигается вместе с шириной зала)
+  const kw = hallWAt(s.expansion)
+  const base = findNearestWalkable(s.items, kw + 1, 5, s.expansion, 6) ?? { x: kw + 1, y: 5 }
   const k = cookIndex + 1
   const candidates: PathCell[] = [
     { x: base.x, y: base.y },
@@ -359,7 +436,7 @@ function cookStandbyCell(
   for (const c of candidates) {
     const key = `${c.x},${c.y}`
     if (takenCells.has(key)) continue
-    if (!isWalkable(s.items, c.x, c.y)) continue
+    if (!isWalkable(s.items, c.x, c.y, s.expansion)) continue
     takenCells.add(key)
     return c
   }
@@ -400,8 +477,8 @@ function ensureStaffNpcs(s: ReturnType<Store['getState']>) {
     })
   }
   if (waiters.length !== waitersWanted) {
-    const hx = Math.floor(HALL_W / 2)
-    const hy = HALL_H - 1
+    const hx = Math.floor(hallWAt(s.expansion) / 2)
+    const hy = hallHAt(s.expansion) - 1
     waiters = Array.from(
       { length: waitersWanted },
       (_, i) => waiters[i] ?? { x: hx, y: hy, tx: hx, ty: hy, path: [], phase: 'idle' as const, facing: 1 },
@@ -447,7 +524,7 @@ function tickCook(
   // цель сменилась — прокладываем путь к своей клетке
   const dest = c.path.length ? c.path[c.path.length - 1] : { x: c.tx, y: c.ty }
   if (dest.x !== cell.x || dest.y !== cell.y) {
-    const p = findPath(s.items, Math.round(c.x), Math.round(c.y), cell.x, cell.y)
+    const p = findPath(s.items, Math.round(c.x), Math.round(c.y), cell.x, cell.y, s.expansion)
     if (p && p.length) {
       const [first, ...rest] = p
       c = { ...c, tx: first.x, ty: first.y, path: rest }
@@ -507,7 +584,7 @@ function tickWaiter(
         // идём к столу клиента
         const client = s.clients.find((c) => c.id === job.clientId)
         const table = client?.tableUid ? s.items.find((i) => i.uid === client.tableUid) : undefined
-        const path = table ? pathToItemAdjacent(s.items, w.x, w.y, table) : null
+        const path = table ? pathToItemAdjacent(s.items, w.x, w.y, table, s.expansion) : null
         if (client && table && path && path.length) {
           const [first, ...rest] = path
           return { ...w, tx: first.x, ty: first.y, path: rest, phase: 'to-table' }
@@ -551,7 +628,7 @@ function tickWaiter(
     claimedJobs.add(ready.id)
     const stove = s.items.find((i) => i.uid === ready.stoveUid)
     if (stove) {
-      const path = pathToItemAdjacent(s.items, w.x, w.y, stove)
+      const path = pathToItemAdjacent(s.items, w.x, w.y, stove, s.expansion)
       if (path && path.length) {
         const [first, ...rest] = path
         return { ...w, tx: first.x, ty: first.y, path: rest, phase: 'to-stove', jobId: ready.id }
@@ -657,6 +734,28 @@ function tickPedestrians(dtSec: number, now: number) {
   }
 }
 
+/**
+ * Критик уходит: пишет анонимный отзыв 1–5★ (эффект 10 мин реального времени).
+ * Обслуженный (не злой) критик идёт в stats.criticsServed + синк квестов.
+ */
+function finishCriticVisit(c: Client, angry: boolean) {
+  const st = storeRef!.getState()
+  const ratio = c.patienceMax ? c.patience / c.patienceMax : 0
+  const activeStains = st.stains.filter((x) => !x.cleaning).length
+  const stars = criticStarsFor({
+    angry,
+    patienceRatio: Math.max(0, Math.min(1, ratio)),
+    activeStains,
+    atmosphere: st.atmosphere(),
+  })
+  storeRef!.setState({ criticReview: { stars, until: Date.now() + CRITIC_REVIEW_MS } })
+  st.pushToast(`📝 Критик оставил отзыв: ${stars}★! ${criticReviewSuffix(stars)}`, stars >= 4 ? 'success' : stars <= 2 ? 'error' : 'info')
+  if (!angry) {
+    const stats = { ...st.stats, criticsServed: st.stats.criticsServed + 1 }
+    storeRef!.setState({ stats, ...syncAllQuests({ ...st, stats }) })
+  }
+}
+
 export function installSimulation(store: Store) {
   storeRef = store
   store.setState({
@@ -669,6 +768,8 @@ export function installSimulation(store: Store) {
       if (s.clients.length >= peopleLimit) return
       // VIP: с 3 уровня, шанс 5% + 1%/ур (макс 15%); всегда одиночный
       const vip = Math.random() < vipChance(s.level)
+      // Критик 📝: анонимный гость с 4 уровня, шанс ~3%; всегда одиночка, не VIP
+      const critic = !vip && s.level >= CRITIC_MIN_LEVEL && Math.random() < CRITIC_CHANCE
       // занятые кресла по столам (группа делит стол) и грязные столы
       const occupied = new Map<string, number>()
       for (const c of s.clients) {
@@ -713,11 +814,11 @@ export function installSimulation(store: Store) {
         }
         return
       }
-      // группа? размер 2..min(4, макс. свободных мест за одним столом); VIP — всегда одиночка
+      // группа? размер 2..min(4, макс. свободных мест за одним столом); VIP и критик — всегда одиночки
       const maxFree = Math.max(...candidates.map((t) => t.free))
       const roomLeft = peopleLimit - s.clients.length
       let size = 1
-      if (!vip && maxFree >= 2 && Math.random() < partyChance(s.level)) {
+      if (!vip && !critic && maxFree >= 2 && Math.random() < partyChance(s.level)) {
         size = 2 + Math.floor(Math.random() * (Math.min(maxFree, 4) - 1))
         size = Math.min(size, roomLeft)
       }
@@ -727,7 +828,7 @@ export function installSimulation(store: Store) {
       let table: (typeof tablesFree)[number] | undefined
       for (const t of candidates) {
         if (t.free < size) continue
-        path = doorPathToItem(s.items, t.item)
+        path = doorPathToItem(s.items, t.item, s.expansion)
         if (path) {
           table = t
           break
@@ -737,7 +838,7 @@ export function installSimulation(store: Store) {
       if ((!table || !path) && size > 1) {
         size = 1
         for (const t of candidates) {
-          path = doorPathToItem(s.items, t.item)
+          path = doorPathToItem(s.items, t.item, s.expansion)
           if (path) {
             table = t
             break
@@ -769,6 +870,8 @@ export function installSimulation(store: Store) {
       const usedSeats = occupied.get(table.item.uid) ?? 0
       const leaderId = nextUid('client')
       const partyId = size > 1 ? leaderId : undefined
+      // День рождения 🎂: с шансом ~8% группа — праздник (отмечаем лидера)
+      const birthday = size > 1 && Math.random() < BIRTHDAY_CHANCE
       const members: Client[] = []
       for (let i = 0; i < size; i++) {
         members.push({
@@ -791,10 +894,12 @@ export function installSimulation(store: Store) {
           partyId,
           partySize: size > 1 ? size : undefined,
           vip: vip || undefined,
+          guestKind: i === 0 ? (critic ? 'critic' : birthday ? 'birthday' : undefined) : undefined,
         })
       }
       store.setState({ clients: [...s.clients, ...members] })
       if (vip) s.pushToast('VIP гость в ресторане! 👑', 'info')
+      if (birthday) s.pushToast('🎉 День рождения в вашем ресторане! Группа заказала праздник 🎈', 'info')
     },
 
     // ---------- начать готовку для ждущего клиента ----------
@@ -837,10 +942,17 @@ export function installSimulation(store: Store) {
         ready: false,
       }
       const stats = { ...s.stats, dishesCooked: s.stats.dishesCooked + 1 }
+      // фестиваль 🎪: +1 порция за любое приготовленное блюдо, +3 — за блюдо недели
+      const festGain = festivalDishEmoji(s.festival.weekKey) === client?.order ? 3 : 1
+      const festival = {
+        ...s.festival,
+        portions: Math.min(FESTIVAL_TARGET * 2, s.festival.portions + festGain),
+      }
       store.setState({
         kitchenJobs: [...s.kitchenJobs, job],
         inventory,
         stats,
+        festival,
         ...syncAllQuests({ ...s, stats }),
       })
     },
@@ -865,28 +977,42 @@ export function installSimulation(store: Store) {
       const partyN = client.partySize ?? 1
       const partyId = client.partyId ?? client.id
       const vip = !!client.vip
+      // день рождения 🎂: лидер именинной группы помечен guestKind; чек ×1.5
+      const birthdayParty = s.clients.some(
+        (c) => (c.partyId ?? c.id) === partyId && c.guestKind === 'birthday',
+      )
+      const birthdayLeader = client.guestKind === 'birthday'
       // VIP: чек ×3 (всегда одиночка, групповой множитель не применяется)
-      const check = checkAmount(s.level) * (partyN > 1 ? PARTY_CHECK_FACTOR : 1) * (vip ? 3 : 1)
+      const check =
+        checkAmount(s.level) * (partyN > 1 ? PARTY_CHECK_FACTOR : 1) * (vip ? 3 : 1) * (birthdayParty ? BIRTHDAY_CHECK_MULT : 1)
       // час пик: атмосфера +10 (клэмп 50) для чаевых
       const atmo = s.rushActive ? Math.min(50, s.atmosphere() + RUSH_TIP_BONUS) : s.atmosphere()
       // VIP: щедрые чаевые 15–30% от чека; обычные — формула атмосферы
       const tip = vip
         ? Math.round(check * (0.15 + Math.random() * 0.15))
         : tipAmount(check, atmo)
+      // имениннику: чаевые ×1.5
+      const finalTip = birthdayParty ? Math.round(tip * BIRTHDAY_TIP_MULT) : tip
       // «Идеальное обслуживание»: окно 15с от момента ГОТОВНОСТИ блюда (а не посадки),
       // иначе время готовки несправедливо съедает бонус
       const readyAt = job.readyAt ?? job.startedAt + job.duration * 1000
       const perfect = (now - readyAt) / 1000 < PERFECT_SERVICE_SEC
-      let total = check + tip
+      let total = check + finalTip
       if (perfect) total = Math.round(total * 1.5)
       total = Math.round(total)
       // VIP при идеальном обслуживании: шанс 20% на +1💎
       const vipGem = vip && perfect && Math.random() < VIP_GEM_CHANCE
+      // подарок имениннику: шанс 25% на +1💎
+      const birthdayGem = birthdayLeader && Math.random() < BIRTHDAY_GEM_CHANCE
 
       const stats = { ...s.stats }
       stats.servedClients += 1 // порция = один обслуженный клиент
       stats.coinsEarned += total
+      stats.tipsEarned += finalTip // «Мастер чаевых»: только чаевые, без чека/бонуса «идеально»
+      // группа считается один раз — по порции лидера (partyId лидера = его id)
+      if (partyN > 1 && client.partyId === client.id) stats.groupsServed += 1
       if (vip) stats.vipServed += 1 // «Первый VIP»: обслужен без разворота
+      if (birthdayLeader) stats.birthdaysHosted += 1 // проведённый праздник
 
       const table = s.items.find((i) => i.uid === client.tableUid)
       const fx = table ? table.x : client.x
@@ -905,7 +1031,7 @@ export function installSimulation(store: Store) {
 
       store.setState({
         coins: s.coins + total,
-        gems: vipGem ? s.gems + 1 : s.gems,
+        gems: (vipGem || birthdayGem ? s.gems + 1 : s.gems),
         reputation: s.reputation + (vip ? VIP_REP_SERVE : repPerClient(s.level)),
         clients: s.clients.map((c) =>
           c.id === client.id && c.phase === 'seated'
@@ -920,7 +1046,9 @@ export function installSimulation(store: Store) {
       s.spawnFloat(fx, fy, `+${total}🪙`, 'coin')
       if (vip) s.spawnFloat(fx, fy - 0.5, `VIP! +${VIP_REP_SERVE}⭐ 👑`, 'xp')
       if (perfect) s.spawnFloat(fx, fy - (vip ? 1 : 0.5), 'Идеально! ×1.5 ⭐', 'xp')
+      if (birthdayParty) s.spawnFloat(fx, fy - 1, '🎉 Чаевые ×1.5!', 'coin')
       if (vipGem) s.pushToast('VIP оценил сервис: +1💎!', 'success')
+      if (birthdayGem) s.pushToast('🎉 Именинник в восторге: подарок +1💎!', 'success')
       s.addXp(xpPerClient(s.level))
     },
 
@@ -985,6 +1113,18 @@ export function installSimulation(store: Store) {
       // --- ежедневные квесты: сброс в 00:00 мск ---
       s.ensureDailyQuests()
 
+      // --- кулинарный фестиваль 🎪: смена недели — новое блюдо и сброс прогресса ---
+      s.syncFestivalWeek()
+
+      // --- отзыв критика: истёк 10-минутный эффект ---
+      {
+        const st = store.getState()
+        if (st.criticReview && now >= st.criticReview.until) {
+          store.setState({ criticReview: null })
+          st.pushToast('Отзыв критика перестал влиять на поток гостей 📝', 'info')
+        }
+      }
+
       // --- прохожие на улице (анимация, не влияет на баланс) ---
       tickPedestrians(dtSec, now)
 
@@ -998,6 +1138,35 @@ export function installSimulation(store: Store) {
         store.setState({ rushActive: false, rushEndsAt: 0 })
         nextRushAt = rollNextRush(now)
         s.pushToast('Час пик закончился 😌', 'info')
+      }
+
+      // --- санитарная инспекция 🧾: раз в 15–25 мин (с 6 ур., зал не пуст) ---
+      if (!nextInspectionAt) nextInspectionAt = rollNextInspection(now)
+      if (now >= nextInspectionAt) {
+        nextInspectionAt = rollNextInspection(now)
+        const st = store.getState()
+        if (st.level >= INSPECTION_MIN_LEVEL && st.clients.length > 0) {
+          const activeStains = st.stains.filter((x) => !x.cleaning).length
+          if (activeStains >= INSPECTION_STAIN_LIMIT) {
+            // штраф: −10% монет (мин 50) и −3⭐ репутации
+            const fine = Math.max(50, Math.round(st.coins * 0.1))
+            store.setState({
+              coins: Math.max(0, st.coins - fine),
+              reputation: Math.max(0, st.reputation - 3),
+            })
+            st.pushToast(`🧾 Санинспекция: штраф за грязь! −${fine}🪙 −3⭐`, 'error')
+          } else {
+            // чисто: награда +150🪙 +2⭐
+            const stats = { ...st.stats, inspectionsPassed: st.stats.inspectionsPassed + 1 }
+            store.setState({
+              coins: st.coins + 150,
+              reputation: st.reputation + 2,
+              stats,
+              ...syncAllQuests({ ...st, stats }),
+            })
+            st.pushToast('🧾 Санинспекция пройдена! Чистота — на высоте +150🪙 +2⭐', 'success')
+          }
+        }
       }
 
       // --- заказы-доставки 🛵: появление каждые 90–150 сек (со 2 уровня, макс 2 активных) ---
@@ -1022,13 +1191,16 @@ export function installSimulation(store: Store) {
         }
       }
 
-      // --- спавн по темпу 0.9 + 0.06×ур клиентов/мин (в час пик ×2) ---
+      // --- спавн по темпу 0.9 + 0.06×ур клиентов/мин (в час пик ×2, отзыв критика ±%) ---
       spawnAccum += dtSec
+      const review = store.getState().criticReview
+      const criticMult = review && review.until > now ? criticReviewMult(review.stars) : 1
       const interval =
         60 /
         (clientsPerMinute(s.level) *
           (1 + facadeBonusPct(s.items) / 100) *
-          (store.getState().rushActive ? RUSH_SPAWN_MULT : 1))
+          (store.getState().rushActive ? RUSH_SPAWN_MULT : 1) *
+          criticMult)
       if (spawnAccum >= interval) {
         spawnAccum = 0
         const before = s.clients.length
@@ -1065,10 +1237,16 @@ export function installSimulation(store: Store) {
           })
           // история не нужна — завершённые уходят из списка
           deliveries = deliveries.filter((d) => d.state === 'active')
+          // счётчик завершённых доставок (квесты/достижения) + синк квестов
+          const dStats = doneOrders.length
+            ? { ...st.stats, deliveriesDone: st.stats.deliveriesDone + doneOrders.length }
+            : st.stats
           store.setState({
             kitchenJobs: st.kitchenJobs.filter((j) => !taken.has(j.id)),
             deliveries,
             coins: st.coins + doneOrders.reduce((a, o) => a + o.reward, 0),
+            stats: dStats,
+            ...(doneOrders.length ? syncAllQuests({ ...st, stats: dStats }) : {}),
           })
           for (const o of doneOrders) {
             store.getState().pushToast(`Доставка выполнена! +${o.reward}🪙`, 'success')
@@ -1164,7 +1342,7 @@ export function installSimulation(store: Store) {
                   // зашёл, а прохода к столам нет — уходит с намёком
                   floats.push([cur2.x, cur2.y, 'Где проход? 🚧', 'rep-down'])
                   repHint = true
-                  const back = pathToDoor(itemsRef, cur2.x, cur2.y)
+                  const back = pathToDoor(itemsRef, cur2.x, cur2.y, s.expansion)
                   return leaveWithPath(cur2, back, 'angry-leaving')
                 }
                 return { ...cur2, phase: 'seated' as const, seatedAt: now }
@@ -1183,7 +1361,7 @@ export function installSimulation(store: Store) {
               floats.push([c.x, c.y, `-${VIP_REP_LOSS}⭐`, 'rep-down'])
               repLoss += VIP_REP_LOSS
               vipLeftAngry = true
-              const back = pathToDoor(itemsRef, c.x, c.y)
+              const back = pathToDoor(itemsRef, c.x, c.y, s.expansion)
               return leaveWithPath({ ...c, waitingUntil: undefined }, back, 'angry-leaving')
             }
             return c
@@ -1197,7 +1375,8 @@ export function installSimulation(store: Store) {
               floats.push([c.x, c.y, '-2⭐', 'rep-down'])
               repLoss += 2 // реально вычитаем 2⭐ за angry-уход (клэмп ниже); один раз за группу
               angryPartyIds.add(c.partyId ?? c.id)
-              const back = pathToDoor(itemsRef, c.x, c.y)
+              if (c.guestKind === 'critic') finishCriticVisit(c, true) // критик ушёл злым — 1★
+              const back = pathToDoor(itemsRef, c.x, c.y, s.expansion)
               maybeSpawnStain(c.tableUid, now) // недовольный тоже мусорит (за себя)
               return {
                 ...leaveWithPath({ ...c, patience: 0 }, back, 'angry-leaving'),
@@ -1222,7 +1401,8 @@ export function installSimulation(store: Store) {
                 )
               if (someoneEating) return c // сидим довольные, ждём остальных
               changed = true
-              const back = pathToDoor(itemsRef, c.x, c.y)
+              if (c.guestKind === 'critic') finishCriticVisit(c, false) // обслуженный критик пишет отзыв
+              const back = pathToDoor(itemsRef, c.x, c.y, s.expansion)
               maybeSpawnStain(c.tableUid, now) // довольный клиент тоже может оставить грязь
               return {
                 ...leaveWithPath({ ...c, eatStart: undefined, eatEnd: undefined }, back, 'leaving'),
@@ -1241,7 +1421,7 @@ export function installSimulation(store: Store) {
           if (c.phase !== 'seated' || !c.partyId || !angryPartyIds.has(c.partyId)) return c
           maybeSpawnStain(c.tableUid, now) // мусор — за каждого члена группы
           return {
-            ...leaveWithPath({ ...c, patience: 0 }, pathToDoor(itemsRef, c.x, c.y), 'angry-leaving'),
+            ...leaveWithPath({ ...c, patience: 0 }, pathToDoor(itemsRef, c.x, c.y, s.expansion), 'angry-leaving'),
             tableUid: undefined,
           }
         })

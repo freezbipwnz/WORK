@@ -8,6 +8,9 @@ import MarketPanel from './panels/MarketPanel'
 import StaffPanel from './panels/StaffPanel'
 import QuestsPanel from './panels/QuestsPanel'
 import DeliveryPanel from './panels/DeliveryPanel'
+import AchievementsPanel from './panels/AchievementsPanel'
+import GemShopPanel from './panels/GemShopPanel'
+import { ACHIEVEMENTS, achievementDone } from '@/game/achievements'
 import { cn } from '@/lib/utils'
 
 /**
@@ -27,6 +30,9 @@ export default function TabPanelSlot() {
   const deliveryBadge = useGameStore((s) =>
     s.deliveries.some((d) => d.state === 'active'),
   )
+  const achievementsBadge = useGameStore((s) =>
+    ACHIEVEMENTS.some((a) => !s.claimedAchievements.includes(a.id) && achievementDone(a, s.stats)),
+  )
 
   // Кнопка 🧺 в HUD шлёт событие — открываем таб «Рынок» (bottom-sheet раскрыт)
   useEffect(() => {
@@ -36,6 +42,16 @@ export default function TabPanelSlot() {
     }
     window.addEventListener('restocity:open-market', handler)
     return () => window.removeEventListener('restocity:open-market', handler)
+  }, [])
+
+  // Кнопка 💎 в HUD шлёт событие — открываем таб «Гемы»
+  useEffect(() => {
+    const handler = () => {
+      setTab('gems')
+      setExpanded(true)
+    }
+    window.addEventListener('restocity:open-gems', handler)
+    return () => window.removeEventListener('restocity:open-gems', handler)
   }, [])
 
   const onTab = (t: TabId) => {
@@ -59,7 +75,7 @@ export default function TabPanelSlot() {
       {/* Шапка панели: табы слева, кнопка «🔨 Расстановка» — слот справа, в потоке */}
       <div className="panel-header flex items-center gap-2">
         <div className="panel-tabs flex min-w-0 flex-1 gap-2 overflow-x-auto">
-          <TabBar active={tab} onChange={onTab} questsBadge={questsBadge} deliveryBadge={deliveryBadge} />
+          <TabBar active={tab} onChange={onTab} questsBadge={questsBadge} deliveryBadge={deliveryBadge} achievementsBadge={achievementsBadge} />
         </div>
         <GameButton
           variant={mode === 'build' ? 'buy' : 'primary'}
@@ -90,6 +106,8 @@ export default function TabPanelSlot() {
             {tab === 'staff' && <StaffPanel />}
             {tab === 'quests' && <QuestsPanel />}
             {tab === 'delivery' && <DeliveryPanel />}
+            {tab === 'achievements' && <AchievementsPanel />}
+            {tab === 'gems' && <GemShopPanel />}
           </motion.div>
         </AnimatePresence>
       </div>

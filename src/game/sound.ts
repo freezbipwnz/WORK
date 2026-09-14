@@ -185,7 +185,16 @@ export function initSound(): void {
     if (s.toasts !== p.toasts) {
       const prevIds = new Set(p.toasts.map((t) => t.id))
       for (const t of s.toasts) {
-        if (!prevIds.has(t.id) && t.kind === 'error') playError()
+        if (prevIds.has(t.id)) continue
+        if (t.kind === 'error') playError()
+        // события фаз: инспекция пройдена / награды — quest-звук; плохой отзыв критика — error
+        if (t.text.includes('Санинспекция пройдена')) playQuest()
+        if (t.text.includes('Критик оставил отзыв')) {
+          const m = t.text.match(/(\d)★/)
+          const stars = m ? Number(m[1]) : 3
+          if (stars >= 4) playQuest()
+          else if (stars <= 2) playError()
+        }
       }
     }
   })

@@ -31,13 +31,16 @@ export const DOOR_SPRITE = 'door'
 export const CHAIR_SPRITE = 'chair'
 
 // Эмодзи заказа → иконка блюда (только для блюд со спрайтом).
+// Блюда без записи рендерятся эмодзи-фоллбэком.
 export const DISH_SPRITES: Record<string, string> = {
   '🥗': 'dish_salad',
   '🍝': 'dish_soup',
   '🍹': 'dish_drink',
-  // fallback по типу: горячие блюда без своего спрайта используют dish_soup
-  '🍕': 'dish_soup',
-  '🥩': 'dish_soup',
+  '🍕': 'dish_pizza',
+  '🥩': 'dish_steak',
+  '🍣': 'dish_sushi',
+  '🍔': 'dish_burger',
+  '🍰': 'dish_cake',
 }
 
 export function spriteUrl(name: string): string {

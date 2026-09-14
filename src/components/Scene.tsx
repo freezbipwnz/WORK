@@ -2,8 +2,8 @@ import { memo, useEffect, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useGameStore } from '@/game/store'
-import { CURB_ROW, DOOR, HALL_H, HALL_W, STREET_ROWS, getItem, pxOffsetToCells, seatOffsets } from '@/game/catalog'
-import { isoX, isoY, zOrder, Z, SCENE_W, SCENE_H, ORIGIN_Y, GRID_W, GRID_H, WALL_H, TILE_W, TILE_H } from '@/game/iso'
+import { DOOR, HALL_H, curbRowAt, gridWAt, hallHAt, hallWAt, streetRowsAt, getItem, pxOffsetToCells, seatOffsets } from '@/game/catalog'
+import { isoX, isoY, zOrder, Z, SCENE_W, SCENE_H, ORIGIN_Y, WALL_H, TILE_W, TILE_H } from '@/game/iso'
 import type { Client, Pedestrian, PlacedItem, StaffNpc, Stain } from '@/game/types'
 import { cn } from '@/lib/utils'
 import { CHAIR_SPRITE, CUSTOMER_SPRITES, DISH_SPRITES, ITEM_SPRITES, STAFF_SPRITES, customerSprite, spriteUrl } from './sprites'
@@ -553,7 +553,7 @@ function Chairs({ item }: { item: PlacedItem }) {
  * т.к. рендерится внутри ClientView на позиции кресла). Единая точка рендера
  * индикатора еды — отдельный оверлей EatingBars отключён (без дублей).
  */
-function EatBubble({ start, end }: { start?: number; end?: number }) {
+function EatBubble({ start, end, balloon }: { start?: number; end?: number; balloon?: boolean }) {
   // прогресс — по реальному времени: пересчёт в интервале 4 раза в секунду
   const [pct, setPct] = useState(0)
   useEffect(() => {
@@ -574,6 +574,7 @@ function EatBubble({ start, end }: { start?: number; end?: number }) {
     >
       <div className="flex items-center gap-1">
         <span className="text-xs leading-none">🍽</span>
+        {balloon && <span className="text-xs leading-none">🎈</span>}
         <div className="h-1 w-7 overflow-hidden rounded-full bg-wall">
           <div className="h-full rounded-full bg-sage" style={{ width: `${pct * 100}%` }} />
         </div>
@@ -701,6 +702,9 @@ const ClientView = memo(function ClientView({ client }: { client: Client }) {
             style={{ top: -46, zIndex: Z.bubble }}
           >
             {client.vip && <span className="mr-0.5">👑</span>}
+            {client.guestKind === 'birthday' && client.phase !== 'leaving' && client.phase !== 'angry-leaving' && (
+              <span className="mr-0.5">🎈</span>
+            )}
             {DISH_SPRITES[bubble] ? (
               <img
                 src={spriteUrl(DISH_SPRITES[bubble])}
@@ -721,7 +725,9 @@ const ClientView = memo(function ClientView({ client }: { client: Client }) {
             )}
           </div>
         )}
-        {client.phase === 'eating' && <EatBubble start={client.eatStart} end={client.eatEnd} />}
+        {client.phase === 'eating' && (
+          <EatBubble start={client.eatStart} end={client.eatEnd} balloon={client.guestKind === 'birthday'} />
+        )}
         {CUSTOMER_SPRITES.length ? (
           <div style={{ transform: `scaleX(${moving ? (client.facing ?? 1) : isSeated ? seatFacing : 1})` }}>
             <img
@@ -829,6 +835,7 @@ function NpcFigure({
 /** Персонал: повар и официант — живые NPC из стора, уборщик — статичная фигура */
 function StaffFigures() {
   const staff = useGameStore((s) => s.staff)
+  const expansion = useGameStore((s) => s.expansion)
   // массивы NPC: на каждый нанятый слот cook/waiter — свой StaffNpc
   const cooks = useGameStore((s) => s.cooks)
   const waiters = useGameStore((s) => s.waiters)
@@ -858,7 +865,7 @@ function StaffFigures() {
   if (staff.some((m) => m.role === 'cleaner')) {
     // уборщик остаётся статичным (механика грязи — другой агент)
     const x = 1
-    const y = HALL_H - 1
+    const y = hallHAt(expansion) - 1
     figures.push(
       <motion.div
         key="cleaner"
@@ -1038,14 +1045,20 @@ function Floats() {
 
 // ---------- стены, пол, дверь ----------
 
-/** Две задние стены высотой 96px + карниз/плинтус (§5.3, стены рисуются до пола) */
+/** Две задние стены высотой 96px + карниз/плинтус (§5.3, стены рисуются до пола).
+ *  Границы — по ТЕКУЩЕМУ уровню расширения: стены перестраиваются под новый
+ *  размер сразу после покупки (origin фиксирован под макс. сетку — § iso.ts,
+ *  поэтому существующий зал при расширении не съезжает). */
 function Walls() {
+  const expansion = useGameStore((s) => s.expansion)
+  const gw = gridWAt(expansion)
+  const gh = hallHAt(expansion)
   // нижние кромки стен стоят РОВНО на дальних краях ромбовидного пола:
-  // общий угол — верхний вертекс клетки (0,0) = iso(-0.5,-0.5) = (480, 208);
-  // левая стена идёт вдоль края y=-0.5 до правого вертекса клетки (12,0) = (896, 416);
-  // правая (теневая) — вдоль края x=-0.5 до левого вертекса клетки (0,7) = (224, 336).
-  const L = { x0: isoX(-0.5, -0.5), y0: isoY(-0.5, -0.5), x1: isoX(GRID_W - 0.5, -0.5), y1: isoY(GRID_W - 0.5, -0.5) }
-  const R = { x0: isoX(-0.5, -0.5), y0: isoY(-0.5, -0.5), x1: isoX(-0.5, GRID_H - 0.5), y1: isoY(-0.5, GRID_H - 0.5) }
+  // общий угол — верхний вертекс клетки (0,0) = iso(-0.5,-0.5);
+  // левая стена идёт вдоль края y=-0.5 до правого вертекса клетки (gw-1,0),
+  // правая (теневая) — вдоль края x=-0.5 до левого вертекса клетки (0,gh-1).
+  const L = { x0: isoX(-0.5, -0.5), y0: isoY(-0.5, -0.5), x1: isoX(gw - 0.5, -0.5), y1: isoY(gw - 0.5, -0.5) }
+  const R = { x0: isoX(-0.5, -0.5), y0: isoY(-0.5, -0.5), x1: isoX(-0.5, gh - 0.5), y1: isoY(-0.5, gh - 0.5) }
   return (
     <>
       {/* левая стена */}
@@ -1082,12 +1095,16 @@ function Walls() {
   )
 }
 
-/** Пол: 13×8 ромбов шахматкой; кухня — шалфей */
+/** Пол: ромбы шахматкой по ТЕКУЩЕМУ размеру сетки (зал + кухня справа);
+ *  кухня — шалфей. Новые клетки появляются сразу после покупки расширения. */
 function Floor() {
+  const expansion = useGameStore((s) => s.expansion)
+  const hw = hallWAt(expansion)
+  const hh = hallHAt(expansion)
   const tiles: ReactNode[] = []
-  for (let y = 0; y < HALL_H; y++) {
-    for (let x = 0; x < HALL_W + 3; x++) {
-      const kitchen = x >= HALL_W
+  for (let y = 0; y < hh; y++) {
+    for (let x = 0; x < hw + 3; x++) {
+      const kitchen = x >= hw
       const odd = (x + y) % 2 === 1
       tiles.push(
         <Diamond
@@ -1103,14 +1120,17 @@ function Floor() {
   return <>{tiles}</>
 }
 
-/** Стойка между залом и кухней: ПЛОСКИЕ ромбы в плоскости пола вдоль границы x=9/10 (без 3D-экструзии) */
+/** Стойка между залом и кухней: ПЛОСКИЕ ромбы в плоскости пола вдоль границы
+ *  x = hallW−0.5/hallW (без 3D-экструзии); сдвигается вместе с шириной зала */
 function Counter() {
+  const expansion = useGameStore((s) => s.expansion)
+  const x = hallWAt(expansion) - 0.5
   return (
     <>
-      {Array.from({ length: HALL_H }, (_, y) => (
+      {Array.from({ length: hallHAt(expansion) }, (_, y) => (
         <Diamond
           key={y}
-          x={9.5}
+          x={x}
           y={y}
           bg="linear-gradient(#E2CFA6,#D9C49A)"
           style={{ transform: 'scale(0.9)', filter: 'drop-shadow(0 2px 1px rgba(92,70,51,0.18))' }}
@@ -1128,10 +1148,10 @@ function Counter() {
  */
 function Door() {
   // Основание проёма — отрезок кромки стены между изо-точками (-0.5, 3.6) и (-0.5, 4.4)
-  const ax = isoX(-0.5, 3.6) // 124.8
-  const ay = isoY(-0.5, 3.6) // 145.6
-  const bx = isoX(-0.5, 4.4) // 99.2
-  const by = isoY(-0.5, 4.4) // 158.4
+  const ax = isoX(-0.5, 3.6) // 316.8
+  const ay = isoY(-0.5, 3.6) // 273.6
+  const bx = isoX(-0.5, 4.4) // 291.2
+  const by = isoY(-0.5, 4.4) // 286.4
   const DH = 58 // высота проёма вверх по стене, px
   // тонкая рама — чуть шире проёма (выступ 3px вдоль стены и по вертикали)
   const fr = 3
@@ -1184,15 +1204,20 @@ function Door() {
  * Земля под всей сценой: мягкий градиент газона на ВЕСЬ новый фрейм
  * (1120×736 — никакого «пустого бежевого» фона) + песчаный апрон вокруг
  * здания ресторана и тротуара. Рисуется ПЕРВЫМ (z ниже улиц/стен/предметов).
+ * Апрон строится по ТЕКУЩЕМУ размеру сетки и ряду обочины (зависят от
+ * уровня расширения).
  */
 function Ground() {
+  const expansion = useGameStore((s) => s.expansion)
+  const gw = gridWAt(expansion)
+  const curb = curbRowAt(expansion)
   // апрон — параллелограмм вокруг пола и тротуара с обочиной: углы —
-  // верх пола iso(-0.5,-0.5), правый iso(12.5,-0.5), низ обочины
-  // iso(12.5,10.5), левый iso(-0.5,10.5); раздут на 7% от центроида
+  // верх пола iso(-0.5,-0.5), правый iso(gw-0.5,-0.5), низ обочины
+  // iso(gw-0.5,curb+0.5), левый iso(-0.5,curb+0.5); раздут на 7% от центроида
   const T: [number, number] = [isoX(-0.5, -0.5), isoY(-0.5, -0.5)]
-  const R: [number, number] = [isoX(GRID_W - 0.5, -0.5), isoY(GRID_W - 0.5, -0.5)]
-  const B: [number, number] = [isoX(GRID_W - 0.5, CURB_ROW + 0.5), isoY(GRID_W - 0.5, CURB_ROW + 0.5)]
-  const L: [number, number] = [isoX(-0.5, CURB_ROW + 0.5), isoY(-0.5, CURB_ROW + 0.5)]
+  const R: [number, number] = [isoX(gw - 0.5, -0.5), isoY(gw - 0.5, -0.5)]
+  const B: [number, number] = [isoX(gw - 0.5, curb + 0.5), isoY(gw - 0.5, curb + 0.5)]
+  const L: [number, number] = [isoX(-0.5, curb + 0.5), isoY(-0.5, curb + 0.5)]
   const cx = (T[0] + R[0] + B[0] + L[0]) / 4
   const cy = (T[1] + R[1] + B[1] + L[1]) / 4
   const k = 1.07
@@ -1327,17 +1352,21 @@ function Greenery() {
 // ---------- улица: тротуар, обочина, прохожие ----------
 
 /**
- * Тротуар: 2 ряда серых изо-плиток за ближним краем пола (y = 8, 9) + обочина
- * (y = 10, тёмная «дорога»). В расширенной сцене ряды продлены влево за угол
- * здания (x от -1) и вправо (x до 15). Рисуется ДО стен (z ниже стен), клетки,
- * упирающиеся в нижний край сцены, отрезаются (x + y ≤ 24).
+ * Тротуар: 2 ряда серых изо-плиток за ближним краем пола + обочина
+ * (темная «дорога»). Ряды следуют за текущим размером зала (зависят от
+ * уровня расширения). В расширенной сцене ряды продлены влево за угол
+ * здания (x от -1) и вправо (x до 15). Рисуется ДО стен (z ниже стен),
+ * клетки, упирающиеся в нижний край сцены, отрезаются: предел x+y растёт
+ * на 1 за каждый добавленный расширением ряд (базово ≤ 24).
  */
 function Street() {
+  const expansion = useGameStore((s) => s.expansion)
+  const maxXY = 24 + (hallHAt(expansion) - HALL_H)
   const tiles: ReactNode[] = []
-  for (const y of [...STREET_ROWS, CURB_ROW]) {
+  for (const y of [...streetRowsAt(expansion), curbRowAt(expansion)]) {
     for (let x = -1; x <= 15; x++) {
-      if (x + y > 24) continue // за нижним краем сцены (736px)
-      const curb = y === CURB_ROW
+      if (x + y > maxXY) continue // за нижним краем сцены (736px)
+      const curb = y === curbRowAt(expansion)
       const odd = (x + y) % 2 === 1
       tiles.push(
         <Diamond

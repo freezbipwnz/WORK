@@ -81,6 +81,38 @@ export const DISHES: DishDef[] = [
     recipe: { meat: 1, spices: 1 },
     description: 'Прожарка medium rare. Для гурманов.',
   },
+  {
+    id: 'ukha',
+    name: 'Уха',
+    emoji: '🍲',
+    level: 7,
+    recipe: { fish: 1, veggies: 1 },
+    description: 'Наваристая, из свежего улова. С зеленью.',
+  },
+  {
+    id: 'sushi',
+    name: 'Суши',
+    emoji: '🍣',
+    level: 8,
+    recipe: { fish: 2 },
+    description: 'Нигири с лососем и тунцом. Искусство минимализма.',
+  },
+  {
+    id: 'burger',
+    name: 'Бургер',
+    emoji: '🍔',
+    level: 10,
+    recipe: { dough: 1, meat: 1 },
+    description: 'Сочная котлета, тёплая булка. Классика фастфуда.',
+  },
+  {
+    id: 'cake',
+    name: 'Торт',
+    emoji: '🍰',
+    level: 12,
+    recipe: { dough: 2, cheese: 1 },
+    description: 'Нежные коржи и крем. Финал идеального ужина.',
+  },
 ]
 
 export function getDishByEmoji(emoji: string): DishDef | undefined {

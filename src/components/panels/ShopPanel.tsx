@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
-import { CATALOG } from '@/game/catalog'
+import { CATALOG, EXPANSIONS, MAX_EXPANSION, hallHAt, hallWAt, isSeasonActive } from '@/game/catalog'
 import { useGameStore } from '@/game/store'
 import type { CatalogItem, ItemCategory } from '@/game/types'
 import GameButton from '../ui/GameButton'
@@ -137,15 +137,93 @@ function ItemCard({ item, index, coins, level }: CardProps) {
   )
 }
 
+/** Карточка «Расширение зала» (ТЗ §1.2): покупка следующей ступени — зал
+ *  растёт по сетке, новые клетки сразу доступны в режиме стройки. */
+function ExpansionCard({ index, coins, level, expansion }: { index: number; coins: number; level: number; expansion: number }) {
+  const next = EXPANSIONS[expansion]
+  if (!next) return null // зал максимального размера — карточка не нужна
+  const locked = level < next.level
+  const canAfford = coins >= next.price
+  const missing = next.price - coins
+
+  return (
+    <motion.div
+      initial={{ scale: 0.5, opacity: 0 }}
+      animate={{ scale: 1, opacity: 1 }}
+      transition={{ type: 'spring', stiffness: 320, damping: 22, delay: index * 0.04 }}
+      className="outline-cozy flex min-w-0 flex-col gap-2 overflow-hidden rounded-2xl bg-cream p-3 shadow-sticker"
+    >
+      <div className="flex items-start justify-between gap-1">
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-paper text-3xl leading-none shadow-[inset_0_2px_0_rgba(255,255,255,0.6)]">
+          🏗️
+        </div>
+        <div className="flex flex-col items-end gap-1">
+          {locked && (
+            <span className="rounded-lg bg-berry/15 px-1.5 py-0.5 font-display text-[0.6875rem] font-bold text-berry">
+              🔒 Ур. {next.level}
+            </span>
+          )}
+          <span className="rounded-lg bg-wall px-1.5 py-0.5 text-[0.6875rem] font-bold text-cocoa-soft">
+            {hallWAt(expansion)}×{hallHAt(expansion)} → {next.hallW}×{next.hallH}
+          </span>
+        </div>
+      </div>
+
+      <div className="truncate font-body text-[0.8125rem] font-bold leading-tight text-cocoa" title="Расширение зала">
+        Расширение зала
+      </div>
+
+      <div className="flex flex-wrap gap-1">
+        <span className="rounded-md bg-paper px-1 py-px text-[0.625rem] font-semibold text-cocoa-soft">
+          🧱 {next.adds}
+        </span>
+        <span className="rounded-md bg-paper px-1 py-px text-[0.625rem] font-semibold text-cocoa-soft">
+          🍳 кухня — 3 колонки справа
+        </span>
+      </div>
+
+      <div className="mt-auto flex items-baseline justify-between gap-1">
+        <span
+          className={cn(
+            'tnum font-display text-[0.9375rem] font-bold',
+            locked || canAfford ? 'text-cocoa' : 'text-berry',
+          )}
+        >
+          {locked ? `🔒 Ур. ${next.level}` : `${next.price} 🪙`}
+        </span>
+        {!locked && !canAfford && (
+          <span className="text-[0.6875rem] font-semibold text-berry">−{missing}🪙</span>
+        )}
+      </div>
+
+      <GameButton
+        variant="buy"
+        disabled={locked}
+        canAfford={canAfford}
+        onClick={() => useGameStore.getState().buyExpansion()}
+        className="min-h-[44px] w-full px-3 py-1.5 text-[0.8125rem]"
+      >
+        Расширить
+      </GameButton>
+    </motion.div>
+  )
+}
+
 /** Таб «Магазин 🛒» (game.md §4.1): подкатегории-чипы + каталог ItemCard */
 export default function ShopPanel() {
   const [cat, setCat] = useState<CatFilter>('all')
   // Живая реакция на баланс/уровень
   const coins = useGameStore((s) => s.coins)
   const level = useGameStore((s) => s.level)
+  const expansion = useGameStore((s) => s.expansion)
 
   const items = useMemo(
-    () => CATALOG.filter((i) => cat === 'all' || i.category === cat),
+    // эксклюзив за гемы (gemPrice) в обычном магазине не показываем — он во вкладке 💎;
+    // сезонные предметы — только в свой сезон (по месяцу московского времени)
+    () =>
+      CATALOG.filter(
+        (i) => !i.gemPrice && isSeasonActive(i) && (cat === 'all' || i.category === cat),
+      ),
     [cat],
   )
 
@@ -181,6 +259,10 @@ export default function ShopPanel() {
         className="grid min-h-0 flex-1 auto-rows-min gap-2 overflow-y-auto pr-1 sm:gap-3"
         style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(130px, 100%), 1fr))' }}
       >
+        {/* Карточка расширения зала — только во вкладке «Всё», первой в сетке */}
+        {cat === 'all' && expansion < MAX_EXPANSION && (
+          <ExpansionCard index={0} coins={coins} level={level} expansion={expansion} />
+        )}
         {items.map((item, i) => (
           <ItemCard
             key={item.id}

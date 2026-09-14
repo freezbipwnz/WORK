@@ -41,6 +41,7 @@ export const STORY_QUEST_DEFS: StoryQuestDef[] = [
   { id: 'seats_6', title: 'Больше мест!', description: 'Добейся 6 посадочных мест', stat: 'seatsMax', target: 6, unlockLevel: 3, reward: 250, xpReward: 100 },
   { id: 'earn_700', title: 'Стабильный доход', description: 'Заработай 700🪙 с клиентов', stat: 'coinsEarned', target: 700, unlockLevel: 3, reward: 300, xpReward: 130 },
   { id: 'clean_5', title: 'Тап по грязи', description: 'Убери 5 пятен грязи', stat: 'stainsCleaned', target: 5, unlockLevel: 3, reward: 200, xpReward: 80 },
+  { id: 'delivery_3', title: 'Первые доставки', description: 'Собери 3 доставки 🛵', stat: 'deliveriesDone', target: 3, unlockLevel: 3, reward: 250, xpReward: 120 },
 
   // ---------- Уровень 4: сервис ----------
   { id: 'waiter_1', title: 'Руки свободны', description: 'Найми официанта 🤵', stat: 'waitersHired', target: 1, unlockLevel: 4, reward: 350, xpReward: 160 },
@@ -56,6 +57,8 @@ export const STORY_QUEST_DEFS: StoryQuestDef[] = [
   { id: 'seats_10', title: 'Просторный зал', description: 'Добейся 10 посадочных мест', stat: 'seatsMax', target: 10, unlockLevel: 5, reward: 450, xpReward: 200 },
   { id: 'level_5', title: 'Крепкий середняк', description: 'Достигни 5 уровня', stat: 'levelReached', target: 5, unlockLevel: 5, reward: 300, xpReward: 100, gemReward: 5 },
   { id: 'cleanliness', title: 'Чистота — залог...', description: 'Убери 10 пятен грязи', stat: 'stainsCleaned', target: 10, unlockLevel: 5, reward: 250, xpReward: 80 },
+  { id: 'tips_500', title: 'Щедрые гости', description: 'Получи 500🪙 чаевых', stat: 'tipsEarned', target: 500, unlockLevel: 5, reward: 400, xpReward: 180 },
+  { id: 'critic_1', title: 'Слухи о критике', description: 'Обслужи анонимного критика 📝 (не дай ему уйти злым)', stat: 'criticsServed', target: 1, unlockLevel: 5, reward: 400, xpReward: 180, gemReward: 5 },
 
   // ---------- Уровень 6: престиж ----------
   { id: 'vip_3', title: 'VIP-сервис', description: 'Обслужи 3 VIP-клиентов 👑', stat: 'vipServed', target: 3, unlockLevel: 6, reward: 500, xpReward: 220, gemReward: 5 },
@@ -63,6 +66,7 @@ export const STORY_QUEST_DEFS: StoryQuestDef[] = [
   { id: 'cook_40', title: 'Шеф от бога', description: 'Приготовь 40 блюд', stat: 'dishesCooked', target: 40, unlockLevel: 6, reward: 450, xpReward: 200 },
   { id: 'earn_3000', title: 'Три тысячи', description: 'Заработай 3000🪙 с клиентов', stat: 'coinsEarned', target: 3000, unlockLevel: 6, reward: 550, xpReward: 240 },
   { id: 'facade_2', title: 'Заметный с улицы', description: 'Поставь 2 предмета фасада', stat: 'facadePlaced', target: 2, unlockLevel: 6, reward: 350, xpReward: 160 },
+  { id: 'groups_5', title: 'Компания за столом', description: 'Обслужи 5 групп гостей', stat: 'groupsServed', target: 5, unlockLevel: 6, reward: 500, xpReward: 220 },
 
   // ---------- Уровень 7: порядок ----------
   { id: 'cleaner_1', title: 'Чистые руки', description: 'Найми уборщика 🧹', stat: 'cleanersHired', target: 1, unlockLevel: 7, reward: 500, xpReward: 220 },
@@ -70,18 +74,22 @@ export const STORY_QUEST_DEFS: StoryQuestDef[] = [
   { id: 'clean_15', title: 'Сияющий зал', description: 'Убери 15 пятен грязи', stat: 'stainsCleaned', target: 15, unlockLevel: 7, reward: 400, xpReward: 170 },
   { id: 'atmo_12', title: 'Атмосфера 12%', description: 'Достигни 12% атмосферы', stat: 'maxAtmosphere', target: 12, unlockLevel: 7, reward: 500, xpReward: 220 },
   { id: 'market_30', title: 'Оптовик', description: 'Купи 30 ингредиентов на рынке', stat: 'ingredientsBought', target: 30, unlockLevel: 7, reward: 400, xpReward: 170 },
+  { id: 'delivery_10', title: 'Курьерская сеть', description: 'Собери 10 доставок 🛵', stat: 'deliveriesDone', target: 10, unlockLevel: 7, reward: 600, xpReward: 260 },
+  { id: 'birthday_3', title: 'Праздник к нам приходит', description: 'Проведи 3 дня рождения 🎂', stat: 'birthdaysHosted', target: 3, unlockLevel: 7, reward: 600, xpReward: 260 },
 
   // ---------- Уровень 8: серьёзная кухня ----------
   { id: 'kitchen_up', title: 'Мощная кухня', description: 'Купи 2 плиты (вторая точка готовки)', stat: 'stovesBought', target: 2, unlockLevel: 8, reward: 700, xpReward: 300, gemReward: 5 },
   { id: 'vip_5', title: 'Золотые гости', description: 'Обслужи 5 VIP-клиентов 👑', stat: 'vipServed', target: 5, unlockLevel: 8, reward: 700, xpReward: 300 },
   { id: 'earn_5000', title: 'Пять тысяч', description: 'Заработай 5000🪙 с клиентов', stat: 'coinsEarned', target: 5000, unlockLevel: 8, reward: 800, xpReward: 340 },
   { id: 'serve_85', title: 'Почти сотня', description: 'Обслужи 85 клиентов', stat: 'servedClients', target: 85, unlockLevel: 8, reward: 800, xpReward: 340 },
+  { id: 'inspection_3', title: 'Безупречная чистота', description: 'Пройди 3 санинспекции 🧾', stat: 'inspectionsPassed', target: 3, unlockLevel: 8, reward: 700, xpReward: 300 },
 
   // ---------- Уровень 9: империя ----------
   { id: 'staff_3', title: 'Полный штат', description: 'Найми 3 сотрудников', stat: 'staffHired', target: 3, unlockLevel: 9, reward: 700, xpReward: 300, gemReward: 5 },
   { id: 'decor_10', title: 'Музей уюта', description: 'Размести 10 предметов декора', stat: 'decorPlaced', target: 10, unlockLevel: 9, reward: 700, xpReward: 300 },
   { id: 'seats_14', title: 'Банкетный зал', description: 'Добейся 14 посадочных мест', stat: 'seatsMax', target: 14, unlockLevel: 9, reward: 800, xpReward: 320 },
   { id: 'happy_45', title: 'Легенда района', description: 'Получи 45 хороших отзывов', stat: 'goodReviews', target: 45, unlockLevel: 9, reward: 800, xpReward: 330 },
+  { id: 'groups_15', title: 'Банкетный менеджер', description: 'Обслужи 15 групп гостей', stat: 'groupsServed', target: 15, unlockLevel: 9, reward: 800, xpReward: 340 },
 
   // ---------- Уровень 10: вершина ----------
   { id: 'level_10', title: 'Десятый уровень!', description: 'Достигни 10 уровня', stat: 'levelReached', target: 10, unlockLevel: 10, reward: 1000, xpReward: 400, gemReward: 10 },

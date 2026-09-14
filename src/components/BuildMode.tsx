@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { PointerEvent as ReactPointerEvent } from 'react'
 import { useGameStore, canPlace } from '@/game/store'
-import { FACADE_ZONE, HALL_H, HALL_W, KITCHEN_W, getItem, sellPrice } from '@/game/catalog'
+import { facadeZoneAt, gridWAt, hallHAt, getItem, sellPrice } from '@/game/catalog'
 import { isoX, isoY, screenToCell, SCENE_W, SCENE_H, TILE_W, TILE_H } from '@/game/iso'
 import { ITEM_SPRITES, spriteUrl } from './sprites'
 
@@ -17,6 +17,7 @@ export default function BuildModeOverlay() {
   const buildItemId = useGameStore((s) => s.buildItemId)
   const movingUid = useGameStore((s) => s.movingUid)
   const items = useGameStore((s) => s.items)
+  const expansion = useGameStore((s) => s.expansion)
   const [hover, setHover] = useState<{ x: number; y: number } | null>(null)
   const [menu, setMenu] = useState<{ uid: string; x: number; y: number } | null>(null)
   const [confirmSell, setConfirmSell] = useState(false)
@@ -38,7 +39,7 @@ export default function BuildModeOverlay() {
 
   const valid =
     hover && activeItemId
-      ? canPlace(items, activeItemId, hover.x, hover.y, movingUid ?? undefined)
+      ? canPlace(items, activeItemId, hover.x, hover.y, expansion, movingUid ?? undefined)
       : false
 
   /** pointer → клетка сетки через обратную изо-проекцию (с учётом scale сцены) */
@@ -50,16 +51,19 @@ export default function BuildModeOverlay() {
     return screenToCell(sx, sy)
   }
 
+  // подсветка сетки: зал + кухня ТЕКУЩЕГО уровня расширения (новые клетки
+  // доступны в build mode сразу после покупки расширения)
   const cells = []
-  for (let y = 0; y < HALL_H; y++) {
-    for (let x = 0; x < HALL_W + KITCHEN_W; x++) {
+  for (let y = 0; y < hallHAt(expansion); y++) {
+    for (let x = 0; x < gridWAt(expansion); x++) {
       cells.push({ x, y })
     }
   }
   // предмет фасада «на курсоре» — подсвечиваем фасадную зону улицы
   if (activeDef?.zone === 'street') {
-    for (let x = FACADE_ZONE.x0; x <= FACADE_ZONE.x1; x++) {
-      cells.push({ x, y: FACADE_ZONE.y })
+    const fz = facadeZoneAt(expansion)
+    for (let x = fz.x0; x <= fz.x1; x++) {
+      cells.push({ x, y: fz.y })
     }
   }
 

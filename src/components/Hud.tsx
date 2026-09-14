@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import { useGameStore } from '@/game/store'
+import { criticReviewMult } from '@/game/simulation'
 import CurrencyChip from './ui/CurrencyChip'
 import XPBar from './ui/XPBar'
 import { cn } from '@/lib/utils'
@@ -53,6 +54,33 @@ function RushBadge() {
       title="Гости спавнятся в 2 раза чаще, чаевые +10%"
     >
       🔥 Час пик! ×2 гостей · <span className="tnum">{left}с</span>
+    </div>
+  )
+}
+
+/** Бейдж активного отзыва критика 📝: звёзды, эффект на поток и обратный отсчёт */
+function CriticReviewBadge() {
+  const review = useGameStore((s) => s.criticReview)
+  const [, force] = useState(0)
+  useEffect(() => {
+    if (!review) return
+    const t = setInterval(() => force((n) => n + 1), 500)
+    return () => clearInterval(t)
+  }, [review])
+  if (!review || Date.now() >= review.until) return null
+  const mult = criticReviewMult(review.stars)
+  const pct =
+    mult > 1 ? `+${Math.round((mult - 1) * 100)}% гостей` : mult < 1 ? `−${Math.round((1 - mult) * 100)}% гостей` : 'без эффекта'
+  const left = Math.max(0, Math.ceil((review.until - Date.now()) / 1000))
+  return (
+    <div
+      className={cn(
+        'anim-pop-in flex min-h-[44px] items-center gap-1.5 rounded-full px-3 py-1.5 font-display text-xs font-bold shadow-sticker outline-cozy',
+        mult > 1 ? 'bg-sage/30 text-cocoa' : mult < 1 ? 'bg-berry/20 text-cocoa' : 'bg-paper text-cocoa-soft',
+      )}
+      title={`Отзыв критика ${review.stars}★ влияет на приток гостей: ${pct}`}
+    >
+      📝 Отзыв {review.stars}★ · {pct} · <span className="tnum">{left}с</span>
     </div>
   )
 }
@@ -112,6 +140,7 @@ export default function Hud({ onReset }: { onReset: () => void }) {
       <XPBar level={level} xp={xp} />
       <AtmosphereChip />
       <RushBadge />
+      <CriticReviewBadge />
       <div className="ml-auto flex items-center gap-1 sm:gap-2">
         {heldDish && (
           <span className="anim-pop-in rounded-full bg-sage/25 px-3 py-1 font-display text-xs font-bold text-cocoa">
@@ -125,6 +154,14 @@ export default function Hud({ onReset }: { onReset: () => void }) {
           onClick={() => window.dispatchEvent(new CustomEvent('restocity:open-market'))}
         >
           🧺
+        </button>
+        <button
+          type="button"
+          className={hudBtn}
+          title="Магазин за кристаллы 💎"
+          onClick={() => window.dispatchEvent(new CustomEvent('restocity:open-gems'))}
+        >
+          💎
         </button>
         <button
           type="button"

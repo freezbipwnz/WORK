@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion'
 import { cn } from '@/lib/utils'
 
-export type TabId = 'shop' | 'market' | 'staff' | 'quests' | 'delivery'
+export type TabId = 'shop' | 'market' | 'staff' | 'quests' | 'delivery' | 'achievements' | 'gems'
 
 const TABS: { id: TabId; icon: string; label: string }[] = [
   { id: 'shop', icon: '🛒', label: 'Магазин' },
@@ -9,6 +9,8 @@ const TABS: { id: TabId; icon: string; label: string }[] = [
   { id: 'staff', icon: '👥', label: 'Персонал' },
   { id: 'quests', icon: '📜', label: 'Квесты' },
   { id: 'delivery', icon: '🛵', label: 'Доставка' },
+  { id: 'achievements', icon: '🏆', label: 'Награды' },
+  { id: 'gems', icon: '💎', label: 'Гемы' },
 ]
 
 interface Props {
@@ -18,11 +20,13 @@ interface Props {
   questsBadge?: boolean
   /** пульсирующая точка на табе «Доставка», если есть активный заказ */
   deliveryBadge?: boolean
+  /** пульсирующая точка на табе «Награды», если есть достижение к выдаче */
+  achievementsBadge?: boolean
 }
 
 /** Табы нижней панели: активный — terracotta (design.md §10 TabBar).
  *  Горизонтальная строка по умолчанию; в ландшафте телефона — вертикальная колонка (CSS .panel-tabs). */
-export default function TabBar({ active, onChange, questsBadge, deliveryBadge }: Props) {
+export default function TabBar({ active, onChange, questsBadge, deliveryBadge, achievementsBadge }: Props) {
   return (
     <div className="flex gap-2">
       {TABS.map((t) => (
@@ -43,6 +47,9 @@ export default function TabBar({ active, onChange, questsBadge, deliveryBadge }:
           )}
           {t.id === 'quests' && questsBadge && (
             <span className="anim-badge-pulse absolute -right-1 -top-1 h-3 w-3 rounded-full bg-honey outline outline-2 outline-paper" />
+          )}
+          {t.id === 'achievements' && achievementsBadge && (
+            <span className="anim-badge-pulse absolute -right-1 -top-1 h-3 w-3 rounded-full bg-sage outline outline-2 outline-paper" />
           )}
         </motion.button>
       ))}

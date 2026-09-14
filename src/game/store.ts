@@ -1,7 +1,9 @@
 import { create } from 'zustand'
 import type {
   Client,
+  CriticReview,
   DeliveryOrder,
+  FestivalState,
   GameState,
   GameStats,
   KitchenJob,
@@ -15,20 +17,28 @@ import {
   CATALOG,
   STAFF_DEFS,
   STOVE_MAX_LEVEL,
+  checkAmount,
+  clientsPerMinute,
   getItem,
   sellPrice,
   stoveUpgradeCost,
+  xpPerClient,
   xpTarget,
   mskDateKey,
   rollDailyQuests,
   HALL_W,
-  HALL_H,
   KITCHEN_W,
+  EXPANSIONS,
+  MAX_EXPANSION,
+  hallWAt,
+  hallHAt,
   isFacadeCell,
 } from './catalog'
 import { placementKeepsPaths } from './pathfinding'
 import { DISHES, getIngredient, initialInventory } from './market'
 import { buildStoryQuests, mergeStoryQuests } from './quests'
+import { ACHIEVEMENTS } from './achievements'
+import { FESTIVAL_TIERS, festivalDish, freshFestival, normalizeFestival } from './festival'
 
 /**
  * ================= КОНТРАКТ ДЛЯ ДРУГИХ АГЕНТОВ =================
@@ -49,11 +59,32 @@ import { buildStoryQuests, mergeStoryQuests } from './quests'
  * Прочее:
  *   - атмосфера: `store.atmosphere()` (%)  — производная от декора
  *   - посадочные места: `store.totalSeats()`
+ *   - расширение зала: `store.buyExpansion()` (ТЗ §1.2; размеры сетки — hallWAt/hallHAt(expansion))
  *   - тосты: `store.pushToast(text, kind)`; всплывашки на сцене: `store.spawnFloat(...)`
  * ================================================================
  */
 
 const SAVE_KEY = 'restocity_save_v1'
+
+// --- офлайн-прогресс (ТЗ: доход, пока игрока не было) ---
+const OFFLINE_MIN_MINUTES = 3 // начисляем, только если прошло больше 3 минут
+const OFFLINE_CAP_MINUTES = 8 * 60 // кап 8 часов
+const OFFLINE_EFFICIENCY = 0.4 // эффективность кухни офлайн — 40%
+/** Сводка офлайн-прогресса для приветственного тоста (заполняется в loadGame) */
+let offlineSummary: string | null = null
+
+// --- гем-ускорение ×2 (магазин за гемы 💎): таймер авто-возврата к ×1 ---
+const GEM_SPEED_BOOST_MS = 5 * 60_000 // 5 минут
+let speedBoostTimer: ReturnType<typeof setTimeout> | null = null
+
+// --- цены услуг магазина за гемы 💎 ---
+export const GEM_OFFERS = {
+  instantCook: 3, // мгновенная готовка всех активных заказов
+  cleanAll: 2, // генеральная уборка всех пятен
+  speedBoost: 4, // ускорение ×2 на 5 минут
+  buyCoins: 10, // обмен: +500🪙
+  buyCoinsAmount: 500,
+} as const
 
 let uidCounter = 1
 export function nextUid(prefix = 'u'): string {
@@ -97,6 +128,12 @@ function initialStats(): GameStats {
     seatsMax: 4,
     levelReached: 1,
     maxAtmosphere: 0,
+    deliveriesDone: 0,
+    tipsEarned: 0,
+    groupsServed: 0,
+    criticsServed: 0,
+    birthdaysHosted: 0,
+    inspectionsPassed: 0,
   }
 }
 
@@ -116,29 +153,33 @@ function syncAllQuests(s: Pick<GameState, 'quests' | 'dailyQuests' | 'stats'>) {
   }
 }
 
-/** Проверка: можно ли поставить предмет (зона + пересечения) */
+/** Проверка: можно ли поставить предмет (зона + пересечения).
+ *  Границы зон зависят от уровня расширения зала exp (ТЗ §1.2). */
 export function canPlace(
   items: PlacedItem[],
   itemId: string,
   x: number,
   y: number,
+  exp: number,
   ignoreUid?: string,
 ): boolean {
   const def = getItem(itemId)
   if (!def) return false
+  const hw = hallWAt(exp)
+  const hh = hallHAt(exp)
   const inZone =
     def.zone === 'hall'
-      ? x >= 0 && y >= 0 && x + def.w <= HALL_W && y + def.h <= HALL_H
+      ? x >= 0 && y >= 0 && x + def.w <= hw && y + def.h <= hh
       : def.zone === 'street'
         ? // фасад: каждая клетка footprint'а должна быть в фасадной зоне улицы
           Array.from({ length: def.w * def.h }, (_, i) => ({
             cx: x + (i % def.w),
             cy: y + Math.floor(i / def.w),
-          })).every((c) => isFacadeCell(c.cx, c.cy))
-        : x >= HALL_W &&
+          })).every((c) => isFacadeCell(c.cx, c.cy, exp))
+        : x >= hw &&
           y >= 0 &&
-          x + def.w <= HALL_W + KITCHEN_W &&
-          y + def.h <= HALL_H
+          x + def.w <= hw + KITCHEN_W &&
+          y + def.h <= hh
   if (!inZone) return false
   return !items.some((p) => {
     if (p.uid === ignoreUid) return false
@@ -171,6 +212,16 @@ interface SaveData {
   nextDeliveryAt?: number
   /** Уровни плит (волна «ядро кухни»); в старых сейвах нет → все плиты ур.1 */
   stoveLevels?: Record<string, number>
+  /** Забранные достижения (волна достижений); в старых сейвах нет → [] */
+  claimedAchievements?: string[]
+  /** Уровень расширения зала 0..MAX_EXPANSION (ТЗ §1.2); в старых сейвах нет → 0 */
+  expansion?: number
+  /** Момент сохранения (ms) — база офлайн-прогресса; в старых сейвах нет */
+  savedAt?: number
+  /** Активный отзыв критика (фаза событий); в старых сейвах нет → null */
+  criticReview?: CriticReview | null
+  /** Прогресс кулинарного фестиваля недели; в старых сейвах нет → свежая неделя */
+  festival?: FestivalState
 }
 
 export function saveGame(s: GameState) {
@@ -193,6 +244,11 @@ export function saveGame(s: GameState) {
     deliveries: s.deliveries,
     nextDeliveryAt: s.nextDeliveryAt,
     stoveLevels: s.stoveLevels,
+    claimedAchievements: s.claimedAchievements,
+    expansion: s.expansion,
+    criticReview: s.criticReview,
+    festival: s.festival,
+    savedAt: Date.now(), // метка для офлайн-прогресса (актуальная, не s.savedAt)
   }
   try {
     localStorage.setItem(SAVE_KEY, JSON.stringify(data))
@@ -215,11 +271,41 @@ function loadGame(): Partial<GameState> | null {
     stats.seatsMax = Math.max(stats.seatsMax, savedSeats)
     const savedAtmo = Math.min(50, savedItems.reduce((acc, p) => acc + (getItem(p.itemId)?.atmosphere ?? 0), 0))
     stats.maxAtmosphere = Math.max(stats.maxAtmosphere, savedAtmo)
+
+    // --- офлайн-прогресс: доход, пока игрока не было (только при нанятом поваре) ---
+    offlineSummary = null
+    let coins = d.coins
+    let gems = d.gems
+    let xp = d.xp
+    let level = d.level
+    const elapsedMs = d.savedAt ? Date.now() - d.savedAt : 0
+    const hasCook = (d.staff ?? []).some((m) => m.role === 'cook')
+    if (elapsedMs > OFFLINE_MIN_MINUTES * 60_000 && hasCook) {
+      // кап 8 часов: сверх капа не начисляем
+      const minutes = Math.min(elapsedMs / 60_000, OFFLINE_CAP_MINUTES)
+      // эффективность кухни офлайн — 40% от обычного потока клиентов
+      const offlineClients = clientsPerMinute(level) * minutes * OFFLINE_EFFICIENCY
+      const income = Math.round(checkAmount(level) * offlineClients)
+      const xpGain = Math.round(xpPerClient(level) * offlineClients)
+      coins += income
+      xp += xpGain
+      // офлайн-ап уровней: тот же цикл, что в addXp (+5💎 за уровень)
+      while (xp >= xpTarget(level)) {
+        xp -= xpTarget(level)
+        level += 1
+        gems += 5
+      }
+      stats.levelReached = Math.max(stats.levelReached, level)
+      const hours = elapsedMs / 3_600_000
+      const span = hours >= 1 ? `${Math.min(8, Math.round(hours * 10) / 10)} ч` : `${Math.floor(elapsedMs / 60_000)} мин`
+      offlineSummary = `С возвращением! 👋 Пока вас не было: +${income}🪙, +${xpGain} XP (${span})`
+    }
+
     return {
-      coins: d.coins,
-      gems: d.gems,
-      xp: d.xp,
-      level: d.level,
+      coins,
+      gems,
+      xp,
+      level,
       reputation: d.reputation ?? 0,
       items: d.items,
       // миграция: у старых сейвов нет defId слота → первый слот роли (`${role}_1`)
@@ -240,6 +326,14 @@ function loadGame(): Partial<GameState> | null {
       nextDeliveryAt: d.nextDeliveryAt ?? 0,
       // миграция: в сейвах до уровней плит поля нет → все плиты уровня 1 (lookup по умолчанию)
       stoveLevels: d.stoveLevels ?? {},
+      // миграция: в сейвах до волны достижений поля нет → пустой список
+      claimedAchievements: d.claimedAchievements ?? [],
+      // миграция: в сейвах до расширения зала поля нет → базовая сетка (расширение 0)
+      expansion: Math.max(0, Math.min(MAX_EXPANSION, d.expansion ?? 0)),
+      // миграция: отзыв критика из сейва действует, только если срок не вышел
+      criticReview: d.criticReview && d.criticReview.until > Date.now() ? d.criticReview : null,
+      // миграция: фестиваль недели — сброс прогресса при смене недели (на лету)
+      festival: normalizeFestival(d.festival),
       savedAt: Date.now(),
     }
   } catch {
@@ -255,6 +349,10 @@ export interface GameActions {
   startMoveItem: (uid: string) => void
   sellItem: (uid: string) => void
   cancelBuild: () => void
+  // --- расширение зала (ТЗ §1.2) ---
+  /** Купить следующую ступень расширения: проверка уровня/монет, списание, тост.
+   *  Новые клетки сразу доступны в build mode; false — покупка невозможна */
+  buyExpansion: () => boolean
   // --- live mode взаимодействия ---
   clickStove: (uid: string) => void
   clickTable: (uid: string) => void
@@ -277,6 +375,25 @@ export interface GameActions {
   claimQuest: (questId: string) => void
   /** Перевыпуск ежедневных квестов, если по Москве наступили новые сутки */
   ensureDailyQuests: () => void
+  // --- кулинарный фестиваль 🎪 ---
+  /** Сброс фестиваля при смене ISO-недели (вызывается из simTick; тост о новом блюде) */
+  syncFestivalWeek: () => void
+  /** Забрать награду фестиваля по тиру (индекс 0..3): порог порций + не забран ранее */
+  claimFestivalReward: (tierIndex: number) => boolean
+  // --- достижения 🏆 ---
+  /** Забрать награду достижения (прогресс считается на лету из stats) */
+  claimAchievement: (id: string) => boolean
+  // --- магазин за гемы 💎 ---
+  /** Купить эксклюзивный предмет за гемы и поставить «на курсор» (build mode) */
+  buyGemItem: (itemId: string) => boolean
+  /** Мгновенная готовка: все активные kitchenJobs становятся ready */
+  gemInstantCook: () => boolean
+  /** Генеральная уборка: убрать все пятна/лужи */
+  gemCleanAll: () => boolean
+  /** Ускорение ×2 на 5 минут с авто-возвратом к ×1 */
+  gemSpeedBoost: () => boolean
+  /** Обмен: +500🪙 за 10💎 */
+  gemBuyCoins: () => boolean
   // --- экономика / прогресс ---
   addCoins: (n: number) => void
   addGems: (n: number) => void
@@ -350,6 +467,10 @@ function baseState(): GameState {
     inventory: initialInventory(),
     stoveLevels: {},
     stovePopupUid: null,
+    claimedAchievements: [],
+    expansion: 0,
+    criticReview: null,
+    festival: freshFestival(),
   }
 }
 
@@ -358,9 +479,9 @@ const saved = loadGame()
 export const useGameStore = create<GameStore>((set, get) => ({
   ...baseState(),
   ...saved,
-  // после загрузки сейва нет живых клиентов — тост приветствия
+  // после загрузки сейва нет живых клиентов — тост приветствия (+ сводка офлайн-прогресса)
   toasts: saved
-    ? [{ id: nextUid('toast'), text: 'С возвращением! 👋', kind: 'info' as const }]
+    ? [{ id: nextUid('toast'), text: offlineSummary ?? 'С возвращением! 👋', kind: 'info' as const }]
     : [],
 
   // ---------- магазин / build ----------
@@ -370,6 +491,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (itemId) {
       const def = getItem(itemId)
       if (!def) return false
+      // эксклюзив за гемы за монеты не продаётся — только через buyGemItem
+      if (def.gemPrice) {
+        get().pushToast('Этот предмет — только за 💎', 'error')
+        return false
+      }
       if (def.level > s.level) {
         get().pushToast(`Нужен уровень ${def.level} 🔒`, 'error')
         return false
@@ -386,11 +512,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   exitBuildMode: () => {
-    // отмена — неразмещённый купленный предмет возвращаем деньгами
+    // отмена — неразмещённый купленный предмет возвращаем деньгами (эксклюзив — гемами)
     const s = get()
     if (s.buildItemId) {
       const def = getItem(s.buildItemId)
-      if (def) set({ coins: s.coins + def.price })
+      if (def) {
+        if (def.gemPrice) set({ gems: s.gems + def.gemPrice })
+        else set({ coins: s.coins + def.price })
+      }
     }
     set({ mode: 'live', buildItemId: null, movingUid: null })
     resumeRealtimeTimers() // сдвигаем startedAt/eatUntil/lastMove на длительность паузы
@@ -400,13 +529,13 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const s = get()
     const itemId = s.buildItemId ?? (s.movingUid ? s.items.find((i) => i.uid === s.movingUid)?.itemId : undefined)
     if (!itemId) return false
-    if (!canPlace(s.items, itemId, x, y, s.movingUid ?? undefined)) return false
+    if (!canPlace(s.items, itemId, x, y, s.expansion, s.movingUid ?? undefined)) return false
 
     // виртуальная сетка с новым положением предмета — проверяем проходы
     const virtualItems = s.movingUid
       ? s.items.map((i) => (i.uid === s.movingUid ? { ...i, x, y } : i))
       : [...s.items, { uid: '__virtual__', itemId, x, y }]
-    if (!placementKeepsPaths(virtualItems)) {
+    if (!placementKeepsPaths(virtualItems, s.expansion)) {
       get().pushToast('Проход заблокирован 🚧', 'error')
       return false // предмет остаётся «на курсоре», покупка не теряется
     }
@@ -472,6 +601,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (!p) return
     const def = getItem(p.itemId)
     if (!def) return
+    // эксклюзив за гемы за монеты не продаётся — иначе конверсия 💎→🪙
+    if (def.gemPrice) {
+      get().pushToast('Эксклюзив нельзя продать 💎', 'error')
+      return
+    }
     // запрет продажи с активными связями: готовка на плите / клиент за столом
     if (def.isStove && s.kitchenJobs.some((j) => j.stoveUid === uid)) {
       get().pushToast('Нельзя: идёт готовка 👨‍🍳', 'error')
@@ -499,9 +633,38 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const s = get()
     if (s.buildItemId) {
       const def = getItem(s.buildItemId)
-      if (def) set({ coins: s.coins + def.price })
+      // эксклюзив за гемы возвращаем гемами, обычный предмет — монетами
+      if (def) {
+        if (def.gemPrice) set({ gems: s.gems + def.gemPrice })
+        else set({ coins: s.coins + def.price })
+      }
     }
     set({ buildItemId: null, movingUid: null })
+  },
+
+  // ---------- расширение зала (ТЗ §1.2) ----------
+
+  buyExpansion: () => {
+    const s = get()
+    const next = EXPANSIONS[s.expansion]
+    if (!next) {
+      get().pushToast('Зал уже максимального размера ⭐', 'info')
+      return false
+    }
+    if (s.level < next.level) {
+      get().pushToast(`Нужен уровень ${next.level} 🔒`, 'error')
+      return false
+    }
+    if (s.coins < next.price) {
+      get().pushToast(`Не хватает ${next.price - s.coins}🪙`, 'error')
+      return false
+    }
+    set({ coins: s.coins - next.price, expansion: s.expansion + 1 })
+    get().pushToast(
+      `Зал расширен: ${next.hallW}×${next.hallH} клеток! 🏗️ Новые клетки доступны в режиме стройки`,
+      'success',
+    )
+    return true
   },
 
   // ---------- live mode ----------
@@ -699,6 +862,153 @@ export const useGameStore = create<GameStore>((set, get) => ({
     get().pushToast('Новые ежедневные задания! 📅', 'info')
   },
 
+  // ---------- кулинарный фестиваль 🎪 ----------
+
+  syncFestivalWeek: () => {
+    const s = get()
+    const fresh = freshFestival()
+    if (s.festival.weekKey === fresh.weekKey) return
+    set({ festival: fresh })
+    const dish = festivalDish(fresh.weekKey)
+    get().pushToast(`🎪 Новый кулинарный фестиваль! Блюдо недели: ${dish.emoji} ${dish.name}`, 'success')
+  },
+
+  claimFestivalReward: (tierIndex) => {
+    const s = get()
+    const tier = FESTIVAL_TIERS[tierIndex]
+    if (!tier) return false
+    if (s.festival.portions < tier.portions) {
+      get().pushToast(`Нужно ${tier.portions} порций за неделю (сейчас ${s.festival.portions}) 🎪`, 'error')
+      return false
+    }
+    if (s.festival.claimedTiers.includes(tierIndex)) return false
+    playQuest()
+    playCoins()
+    set({
+      festival: { ...s.festival, claimedTiers: [...s.festival.claimedTiers, tierIndex] },
+      coins: s.coins + tier.coins,
+      gems: s.gems + tier.gems,
+    })
+    get().pushToast(
+      `🎪 Награда фестиваля (${tier.portions}+ порций)! +${tier.coins}🪙${tier.gems ? ` +${tier.gems}💎` : ''}`,
+      'success',
+    )
+    return true
+  },
+
+  // ---------- достижения 🏆 ----------
+
+  claimAchievement: (id) => {
+    const s = get()
+    const def = ACHIEVEMENTS.find((a) => a.id === id)
+    if (!def || s.claimedAchievements.includes(id)) return false
+    // прогресс на лету из stats — хранить не нужно
+    if ((s.stats[def.stat] ?? 0) < def.target) return false
+    playQuest()
+    playCoins()
+    set({
+      claimedAchievements: [...s.claimedAchievements, id],
+      coins: s.coins + def.reward,
+      gems: def.gemReward ? s.gems + def.gemReward : s.gems,
+    })
+    get().pushToast(
+      `Достижение: ${def.title}! +${def.reward}🪙${def.gemReward ? ` +${def.gemReward}💎` : ''} 🏆`,
+      'success',
+    )
+    return true
+  },
+
+  // ---------- магазин за гемы 💎 ----------
+
+  buyGemItem: (itemId) => {
+    const s = get()
+    const def = getItem(itemId)
+    if (!def || !def.gemPrice) return false
+    if (def.level > s.level) {
+      get().pushToast(`Нужен уровень ${def.level} 🔒`, 'error')
+      return false
+    }
+    if (s.gems < def.gemPrice) {
+      get().pushToast(`Не хватает ${def.gemPrice - s.gems}💎`, 'error')
+      return false
+    }
+    set({ gems: s.gems - def.gemPrice })
+    // предмет «на курсор» в build mode (отмена вернёт гемы — см. exitBuildMode/cancelBuild)
+    set({ mode: 'build', buildItemId: itemId, movingUid: null, heldDishId: null, stovePopupUid: null })
+    pauseRealtimeTimers() // таймеры на реальных часах не дозревают во время build-паузы
+    return true
+  },
+
+  gemInstantCook: () => {
+    const s = get()
+    if (!s.kitchenJobs.some((j) => !j.ready)) {
+      get().pushToast('Нечего готовить — кухня свободна 🍳', 'info')
+      return false
+    }
+    if (s.gems < GEM_OFFERS.instantCook) {
+      get().pushToast(`Не хватает ${GEM_OFFERS.instantCook - s.gems}💎`, 'error')
+      return false
+    }
+    const now = Date.now()
+    set({
+      gems: s.gems - GEM_OFFERS.instantCook,
+      kitchenJobs: s.kitchenJobs.map((j) => (!j.ready ? { ...j, ready: true, readyAt: now } : j)),
+    })
+    get().pushToast('Мгновенная готовка! Всё готово ⚡🍳', 'success')
+    return true
+  },
+
+  gemCleanAll: () => {
+    const s = get()
+    if (!s.stains.length) {
+      get().pushToast('И так чисто! ✨', 'info')
+      return false
+    }
+    if (s.gems < GEM_OFFERS.cleanAll) {
+      get().pushToast(`Не хватает ${GEM_OFFERS.cleanAll - s.gems}💎`, 'error')
+      return false
+    }
+    // платная уборка не идёт в stats.stainsCleaned (квесты — про ручной труд)
+    set({ gems: s.gems - GEM_OFFERS.cleanAll, stains: [] })
+    get().pushToast('Генеральная уборка! Зал сияет ✨🧹', 'success')
+    return true
+  },
+
+  gemSpeedBoost: () => {
+    const s = get()
+    if (speedBoostTimer) {
+      get().pushToast('Ускорение уже активно ⏩', 'info')
+      return false
+    }
+    if (s.gems < GEM_OFFERS.speedBoost) {
+      get().pushToast(`Не хватает ${GEM_OFFERS.speedBoost - s.gems}💎`, 'error')
+      return false
+    }
+    set({ gems: s.gems - GEM_OFFERS.speedBoost, speed: 2 })
+    get().pushToast('Ускорение ×2 на 5 минут! ⏩', 'success')
+    // авто-возврат к ×1 по реальному времени
+    speedBoostTimer = setTimeout(() => {
+      speedBoostTimer = null
+      if (get().speed === 2) {
+        set({ speed: 1 })
+        get().pushToast('Ускорение закончилось ⏱', 'info')
+      }
+    }, GEM_SPEED_BOOST_MS)
+    return true
+  },
+
+  gemBuyCoins: () => {
+    const s = get()
+    if (s.gems < GEM_OFFERS.buyCoins) {
+      get().pushToast(`Не хватает ${GEM_OFFERS.buyCoins - s.gems}💎`, 'error')
+      return false
+    }
+    playCoins()
+    set({ gems: s.gems - GEM_OFFERS.buyCoins, coins: s.coins + GEM_OFFERS.buyCoinsAmount })
+    get().pushToast(`+${GEM_OFFERS.buyCoinsAmount}🪙 за ${GEM_OFFERS.buyCoins}💎`, 'success')
+    return true
+  },
+
   // ---------- рынок ----------
 
   buyIngredient: (id, qty) => {
@@ -747,7 +1057,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
       const unlocks = CATALOG.filter((i) => i.level === level).map((i) => i.name)
       const staffUnlocks = STAFF_DEFS.filter((d) => d.level === level).map((d) => d.name)
       const dishUnlocks = DISHES.filter((d) => d.level === level).map((d) => `${d.emoji} ${d.name}`)
-      const parts = [...unlocks, ...staffUnlocks, ...dishUnlocks]
+      const expUnlocks = EXPANSIONS.filter((e) => e.level === level).map(() => '🏗️ Расширение зала')
+      const parts = [...unlocks, ...staffUnlocks, ...dishUnlocks, ...expUnlocks]
       get().pushToast(
         `Уровень ${level}! +5💎${parts.length ? ` — открыто: ${parts.join(', ')}` : ''}`,
         'success',
@@ -808,6 +1119,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   resetGame: () => {
     localStorage.removeItem(SAVE_KEY)
+    if (speedBoostTimer) {
+      clearTimeout(speedBoostTimer) // гем-ускорение не переживает сброс
+      speedBoostTimer = null
+    }
     resetSimulation() // чистим модульные Map симуляции (spawnAccum/eatUntil)
     set({
       ...baseState(),
