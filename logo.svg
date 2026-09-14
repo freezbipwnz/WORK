@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 96" width="320" height="96">
+  <!-- Иконка: тарелка + домик, колпак повара -->
+  <g>
+    <!-- домик -->
+    <path d="M28 44 L48 26 L68 44 Z" fill="#D9835B" stroke="#5C4633" stroke-width="3" stroke-linejoin="round"/>
+    <rect x="33" y="44" width="30" height="22" rx="5" fill="#FDF9EE" stroke="#5C4633" stroke-width="3"/>
+    <!-- тарелка -->
+    <ellipse cx="48" cy="72" rx="30" ry="10" fill="#E8B44A" stroke="#5C4633" stroke-width="3"/>
+    <ellipse cx="48" cy="70" rx="20" ry="6" fill="#FBF3E4" stroke="#5C4633" stroke-width="2"/>
+    <!-- колпак повара -->
+    <path d="M40 26 a8 8 0 0 1 16 0 l0 6 l-16 0 z" fill="#FFFFFF" stroke="#5C4633" stroke-width="2.5"/>
+    <circle cx="42" cy="20" r="5" fill="#FFFFFF" stroke="#5C4633" stroke-width="2.5"/>
+    <circle cx="54" cy="20" r="5" fill="#FFFFFF" stroke="#5C4633" stroke-width="2.5"/>
+    <circle cx="48" cy="16" r="5" fill="#FFFFFF" stroke="#5C4633" stroke-width="2.5"/>
+  </g>
+  <!-- Леттеринг -->
+  <text x="88" y="58" font-family="'Baloo 2', system-ui, sans-serif" font-weight="800" font-size="40" letter-spacing="1">
+    <tspan fill="#D9835B">Resto</tspan><tspan fill="#E8B44A">City</tspan>
+  </text>
+  <text x="90" y="80" font-family="Nunito, system-ui, sans-serif" font-weight="700" font-size="13" fill="#8A6F55">cozy restaurant sim</text>
+</svg>
