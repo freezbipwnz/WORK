@@ -74,7 +74,7 @@ export default function TabPanelSlot() {
     >
       {/* Шапка панели: табы слева, кнопка «🔨 Расстановка» — слот справа, в потоке */}
       <div className="panel-header flex items-center gap-2">
-        <div className="panel-tabs flex min-w-0 flex-1 gap-2 overflow-x-auto">
+        <div className="panel-tabs scroll-peek flex min-w-0 flex-1 gap-2 overflow-x-auto">
           <TabBar active={tab} onChange={onTab} questsBadge={questsBadge} deliveryBadge={deliveryBadge} achievementsBadge={achievementsBadge} />
         </div>
         <GameButton

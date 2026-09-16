@@ -230,7 +230,7 @@ export default function ShopPanel() {
   return (
     <div className="flex h-full flex-col gap-2">
       {/* Подкатегории-чипы */}
-      <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5">
+      <div className="scroll-peek flex items-center gap-1.5 overflow-x-auto pb-0.5">
         {CATEGORIES.map((c) => (
           <motion.button
             key={c.id}

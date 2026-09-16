@@ -74,14 +74,16 @@
 
   /* ===== Адаптивный масштаб UI (репорт: «на большом экране меню мелкое») =====
      <768px — мобильный вид 1×; 768–1279px (планшет) ×1.25; ≥1280px (desktop) ×1.5.
+     Условие min-height: 500px — чтобы низкий ландшафт (телефон горизонтально,
+     прищуренное окно) НЕ масштабировался: там компактный HUD (см. ниже) и 1×.
      Масштабируем корневой font-size: все rem-утилиты Tailwind (h-11, text-sm,
      min-h-[44px], p-3…) растут пропорционально, px-значения сцены не трогаем. */
-  @media (min-width: 768px) {
+  @media (min-width: 768px) and (min-height: 500px) {
     html {
       font-size: 125%;
     }
   }
-  @media (min-width: 1280px) {
+  @media (min-width: 1280px) and (min-height: 500px) {
     html {
       font-size: 150%;
     }
@@ -149,25 +151,29 @@
     flex-direction: column;
   }
 
-  /* Нижняя панель: высота в rem — растёт вместе с корневым font-size
-     (≈220px на мобильном, ~275px на планшете, ~330px на desktop) */
+  /* Нижняя панель в stacked-раскладке (<1024px): высота в rem — растёт вместе
+     с корневым font-size (≈220px на мобильном, ~275px на планшете) */
   .panel-root {
     height: 13.75rem;
   }
-  @media (min-width: 1024px) {
+  @media (min-width: 640px) and (max-width: 1023px) {
     .panel-root {
       height: 15rem;
     }
   }
 
-  /* Desktop (≥1280px): панель — правый сайдбар (max ~560px), сцена получает
-     всю оставшуюся ширину/высоту; strict-zones grid auto/1fr сохраняется */
-  @media (min-width: 1280px) {
+  /* Desktop/планшет широкий (≥1024px): панель — правый сайдбар (440–560px),
+     сцена получает всю оставшуюся ширину/высоту; центрирование каркаса на
+     очень широких мониторах (max-width). Боковые отступы 16px + safe-area */
+  @media (min-width: 1024px) {
     .game-frame {
       grid-template-rows: auto minmax(0, 1fr);
-      grid-template-columns: minmax(0, 1fr) minmax(420px, 560px);
+      grid-template-columns: minmax(0, 1fr) minmax(440px, 560px);
       grid-template-areas: 'hud hud' 'scene panel';
+      gap: 12px;
       max-width: 1600px;
+      padding: calc(12px + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right))
+        calc(12px + env(safe-area-inset-bottom)) calc(16px + env(safe-area-inset-left));
     }
     .panel-root {
       height: 100%;
@@ -178,8 +184,9 @@
     }
   }
 
-  /* Телефон портрет: bottom-sheet — свёрнут 56px (шапка), раскрыт до 45dvh */
-  @media (max-width: 480px) and (orientation: portrait) {
+  /* Телефон портрет (<640px): bottom-sheet — свёрнут до шапки (табы),
+     тап по табу раскрывает контент до 45dvh */
+  @media (max-width: 639px) and (orientation: portrait) {
     .game-frame {
       gap: 6px;
     }
@@ -195,8 +202,10 @@
     }
   }
 
-  /* Телефон ландшафт: панель — правая колонка, сцена максимум */
-  @media (orientation: landscape) and (max-height: 500px) and (max-width: 900px) {
+  /* Телефон/узкий девайс ландшафт (высота ≤500, ширина <1024): панель —
+     правая узкая колонка 220px с вертикальными табами, сцена максимум.
+     Корневой font-size тут 1× (см. выше), поэтому всё компактно */
+  @media (orientation: landscape) and (max-height: 500px) and (max-width: 1023px) {
     .game-frame {
       grid-template-rows: auto minmax(0, 1fr);
       grid-template-columns: minmax(0, 1fr) 220px;
@@ -244,6 +253,28 @@
 }
 
 @layer utilities {
+  /* Компактный HUD в низком ландшафте: чипы/кнопки ниже (36px), всё в 1–2
+     ряда; .hud-hide — некритичные элементы (подсказка «Несёшь», автосейв).
+     Лежит в слое utilities, чтобы перекрывать min-h-[44px]/sm:inline Tailwind
+     при равной специфичности (блок ниже @tailwind utilities в исходнике). */
+  @media (orientation: landscape) and (max-height: 500px) {
+    .hud-el {
+      min-height: 36px;
+      padding-top: 2px;
+      padding-bottom: 2px;
+    }
+    .hud-hide {
+      display: none;
+    }
+  }
+
+  /* Горизонтальные скролл-ряды (табы, чипы категорий): контент справа обрезается
+     НЕ впритык — следующая карточка/вкладка остаётся частично видна (UX-паттерн
+     «тут можно листать») */
+  .scroll-peek {
+    padding-right: 0.75rem;
+  }
+
   /* Плоская тень-наклейка объекта на полу */
   .shadow-sticker {
     box-shadow: 0 4px 0 rgba(92, 70, 51, 0.12);

@@ -1240,57 +1240,6 @@ function Ground() {
   )
 }
 
-/**
- * Городское окружение: фоновые изо-коробки зданий (две грани + крыша),
- * приглушённые тёплые тона. Расположение (сцена 1120×736):
- *  - верхний левый кластер — ЗА сквозной дорогой (она рисуется позже и
- *    проходит перед их нижними этажами, как улица перед домами);
- *  - за задней стеной справа-сверху (нижние этажи скрыты стеной);
- *  - верхний край правее места входа дороги (дорога входит в сцену
- *    на x≈493–762 верхней кромки) и правый край за рестораном.
- * z ниже стен, DOM — до них. Не кликабельны.
- */
-function CityBackdrop() {
-  const buildings: { cx: number; cy: number; w: number; h: number; roof: string; left: string; right: string }[] = [
-    // верхний левый кластер — за дорогой (дорога проходит перед ними)
-    { cx: 140, cy: 90, w: 150, h: 140, roof: '#D8B9A0', left: '#C7A78C', right: '#B6957B' },
-    { cx: 330, cy: 55, w: 110, h: 100, roof: '#D9C6A6', left: '#C9B48E', right: '#BBA67F' },
-    { cx: 66, cy: 210, w: 96, h: 88, roof: '#D5C4A8', left: '#C4B191', right: '#B3A181' },
-    // за задней стеной справа-сверху (нижние этажи скрыты стеной)
-    { cx: 630, cy: 118, w: 96, h: 88, roof: '#D9C6A6', left: '#C9B48E', right: '#BBA67F' },
-    { cx: 740, cy: 150, w: 128, h: 112, roof: '#D8B9A0', left: '#C7A78C', right: '#B6957B' },
-    { cx: 862, cy: 192, w: 96, h: 78, roof: '#D5C4A8', left: '#C4B191', right: '#B3A181' },
-    { cx: 950, cy: 215, w: 76, h: 104, roof: '#CFC9B4', left: '#BEB79F', right: '#AEA78F' },
-    // верхний край правее дороги
-    { cx: 890, cy: 28, w: 130, h: 140, roof: '#D9C6A6', left: '#C9B48E', right: '#BBA67F' },
-    { cx: 1045, cy: 55, w: 100, h: 95, roof: '#D8B9A0', left: '#C7A78C', right: '#B6957B' },
-    // правый край за рестораном
-    { cx: 1010, cy: 340, w: 104, h: 120, roof: '#D5C4A8', left: '#C4B191', right: '#B3A181' },
-  ]
-  return (
-    <svg className="absolute left-0 top-0" width={SCENE_W} height={SCENE_H} style={{ zIndex: 0 }} pointerEvents="none">
-      {buildings.map((b, i) => {
-        const t = [b.cx, b.cy - b.w / 4]
-        const r = [b.cx + b.w / 2, b.cy]
-        const bt = [b.cx, b.cy + b.w / 4]
-        const l = [b.cx - b.w / 2, b.cy]
-        return (
-          <g key={i}>
-            {/* левая грань */}
-            <polygon points={`${l[0]},${l[1]} ${bt[0]},${bt[1]} ${bt[0]},${bt[1] + b.h} ${l[0]},${l[1] + b.h}`} fill={b.left} />
-            {/* правая грань (темнее) */}
-            <polygon points={`${r[0]},${r[1]} ${bt[0]},${bt[1]} ${bt[0]},${bt[1] + b.h} ${r[0]},${r[1] + b.h}`} fill={b.right} />
-            {/* крыша */}
-            <polygon points={`${t[0]},${t[1]} ${r[0]},${r[1]} ${bt[0]},${bt[1]} ${l[0]},${l[1]}`} fill={b.roof} />
-            {/* кромка крыши */}
-            <polygon points={`${t[0]},${t[1]} ${r[0]},${r[1]} ${bt[0]},${bt[1]} ${l[0]},${l[1]}`} fill="none" stroke="rgba(92,70,51,0.15)" strokeWidth={1.5} />
-          </g>
-        )
-      })}
-    </svg>
-  )
-}
-
 /** Куст: 2-3 круга зелёных оттенков на невидимой опоре; дерево: ствол + крона */
 function Bush({ cx, cy, r }: { cx: number; cy: number; r: number }) {
   return (
@@ -1515,7 +1464,6 @@ export default function Scene() {
       }}
     >
       <Ground />
-      <CityBackdrop />
       <Greenery />
       <Street />
       <StreetLeft />
