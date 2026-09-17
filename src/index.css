@@ -118,7 +118,11 @@
   /* ===== Жёсткий grid-каркас зон (design.md §6, game.md §8) ===== */
   .game-frame {
     display: grid;
+    /* minmax(0, 1fr), а не auto: иначе единственная колонка стека растягивается
+       до min-content контента (HUD/панель ~530px) и весь кадр «уезжает вправо»
+       за viewport на узких экранах, обрезаясь без отступа */
     grid-template-rows: auto minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr);
     grid-template-areas: 'hud' 'scene' 'panel';
     gap: 8px;
     height: 100vh;
@@ -189,6 +193,10 @@
   @media (max-width: 639px) and (orientation: portrait) {
     .game-frame {
       gap: 6px;
+      /* боковые отступы 12px (в диапазоне 12–16 из game.md §8) + safe-area,
+         чтобы контент не прилипал к краю экрана на телефоне */
+      padding: calc(8px + env(safe-area-inset-top)) calc(12px + env(safe-area-inset-right))
+        calc(8px + env(safe-area-inset-bottom)) calc(12px + env(safe-area-inset-left));
     }
     .panel-root {
       height: auto;
@@ -198,6 +206,9 @@
     }
     .panel-root.panel-expanded .panel-content {
       display: block;
+      /* flex-1 (grow) в контейнере с auto-высотой растягивал бы контент на всё
+         свободное место и схлопывал сцену до нуля — здесь высота фиксирована */
+      flex: none;
       height: min(45dvh, 380px);
     }
   }

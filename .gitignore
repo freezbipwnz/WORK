@@ -8,3 +8,5 @@ dist
 # local docs and generated check bundles
 TZ/
 .tools/*.mjs
+
+.tools/uitest/

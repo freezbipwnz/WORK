@@ -30,6 +30,9 @@ function SceneViewport() {
   const [zoom, setZoom] = useState(1)
   const [pan, setPan] = useState<Pt>({ x: 0, y: 0 })
   const mode = useGameStore((s) => s.mode)
+  // туториал-карточка занимает низ сцены — поднимаем кнопки зума выше её,
+  // чтобы не перекрывали кнопки «Пропустить/Далее» (мобильный портрет)
+  const tutorialActive = useGameStore((s) => s.onboardingDone && !s.tutorialDone)
   const ptrs = useRef(new Map<number, Pt>())
   const gesture = useRef({ moved: false, downX: 0, downY: 0, lastX: 0, lastY: 0, pinchD: 0 })
   const suppressClick = useRef(false)
@@ -209,7 +212,10 @@ function SceneViewport() {
         className="absolute z-[60] flex flex-col gap-2"
         style={{
           right: 'calc(0.5rem + env(safe-area-inset-right, 0px))',
-          bottom: 'calc(0.5rem + env(safe-area-inset-bottom, 0px))',
+          bottom: tutorialActive
+            ? 'calc(11.5rem + env(safe-area-inset-bottom, 0px))'
+            : 'calc(0.5rem + env(safe-area-inset-bottom, 0px))',
+          transition: 'bottom 300ms ease',
         }}
       >
         <button
