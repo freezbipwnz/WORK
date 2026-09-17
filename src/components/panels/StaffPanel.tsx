@@ -16,7 +16,7 @@ export default function StaffPanel() {
   const staff = useGameStore((s) => s.staff)
 
   return (
-    <div className="grid h-full grid-cols-1 gap-2 overflow-y-auto sm:grid-cols-3">
+    <div className="grid h-full grid-cols-1 gap-2 overflow-y-auto sm:grid-cols-2 2xl:grid-cols-3">
       {STAFF_DEFS.map((def, i) => {
         const hired = staff.some((m) => (m.defId ?? `${m.role}_1`) === def.id)
         const levelLocked = level < def.level
@@ -35,13 +35,13 @@ export default function StaffPanel() {
               delay: i * 0.04,
             }}
             className={cn(
-              'flex flex-col items-center gap-1.5 rounded-2xl border-2 bg-paper p-3 text-center shadow-sticker',
+              'flex min-w-0 flex-col items-center gap-1.5 rounded-2xl border-2 bg-paper p-3 text-center shadow-sticker',
               hired ? 'border-sage/70' : 'border-cocoa/15',
             )}
           >
             <div
               className={cn(
-                'flex h-12 w-12 items-center justify-center rounded-full border-2 text-3xl',
+                'flex h-12 w-12 shrink-0 items-center justify-center rounded-full border-2 text-3xl',
                 hired
                   ? 'border-sage/50 bg-sage/15'
                   : 'border-cocoa/20 bg-cream',
@@ -49,23 +49,23 @@ export default function StaffPanel() {
             >
               {def.emoji}
             </div>
-            <div className="font-display text-base font-bold leading-tight text-cocoa">
+            <div className="w-full min-w-0 truncate font-display text-base font-bold leading-tight text-cocoa" title={def.name}>
               {def.name}
               <span className="ml-1.5 text-[0.6875rem] font-semibold text-cocoa-soft">
                 ур. {def.level}
               </span>
             </div>
-            <p className="min-h-[32px] text-xs font-semibold leading-snug text-cocoa-soft">
+            <p className="line-clamp-2 min-h-[32px] w-full min-w-0 text-xs font-semibold leading-snug text-cocoa-soft" title={def.bonus}>
               {def.bonus}
             </p>
 
             {hired ? (
-              <span className="inline-flex min-h-[44px] items-center rounded-xl bg-sage/15 px-4 font-display text-[0.9375rem] font-bold text-sage">
+              <span className="inline-flex min-h-[44px] max-w-full items-center truncate rounded-xl bg-sage/15 px-4 font-display text-[0.9375rem] font-bold text-sage">
                 Нанят ✅
               </span>
             ) : levelLocked ? (
-              <span className="inline-flex min-h-[44px] items-center rounded-xl bg-[#CFC4B2] px-4 font-display text-[0.9375rem] font-bold text-cocoa-soft">
-                🔒 Откроется на {def.level} уровне
+              <span className="inline-flex min-h-[44px] max-w-full items-center truncate rounded-xl bg-[#CFC4B2] px-3 text-center font-display text-[0.8125rem] font-bold text-cocoa-soft">
+                🔒 С {def.level} уровня
               </span>
             ) : (
               <GameButton

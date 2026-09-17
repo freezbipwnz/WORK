@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useGameStore } from '@/game/store'
 import TabBar, { type TabId } from './ui/TabBar'
-import GameButton from './ui/GameButton'
 import ShopPanel from './panels/ShopPanel'
 import MarketPanel from './panels/MarketPanel'
 import StaffPanel from './panels/StaffPanel'
@@ -72,22 +71,52 @@ export default function TabPanelSlot() {
         expanded && 'panel-expanded',
       )}
     >
-      {/* Шапка панели: табы слева, кнопка «🔨 Расстановка» — слот справа, в потоке */}
-      <div className="panel-header flex items-center gap-2">
-        <div className="panel-tabs scroll-peek flex min-w-0 flex-1 gap-2 overflow-x-auto">
+      {/* Шапка панели (зонирование: режимы → табы, всё в потоке, без наложений):
+          1) segmented control режимов — два равных сегмента flex-1;
+          2) ряд табов панелей — один непрерывный скролл-ряд с peek */}
+      <div className="panel-header flex flex-col gap-2">
+        <div className="flex gap-2">
+          <motion.button
+            type="button"
+            whileTap={{ scale: 0.97 }}
+            title="Режим игры: панели и покупки"
+            onClick={() => {
+              const st = useGameStore.getState()
+              if (st.mode === 'build') st.exitBuildMode()
+            }}
+            className={cn(
+              'flex min-h-[44px] min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl px-2 font-display text-sm font-bold shadow-sticker transition-colors',
+              mode === 'build'
+                ? 'bg-paper text-cocoa outline-cozy hover:bg-wall'
+                : 'bg-terracotta text-paper',
+            )}
+          >
+            <span className="shrink-0 text-lg leading-none">🛒</span>
+            <span className="seg-label truncate">Магазин</span>
+          </motion.button>
+          <motion.button
+            type="button"
+            whileTap={{ scale: 0.97 }}
+            title={mode === 'build' ? 'Выйти из режима расстановки' : 'Расставить мебель в зале'}
+            onClick={() => {
+              const st = useGameStore.getState()
+              if (st.mode === 'build') st.exitBuildMode()
+              else st.enterBuildMode()
+            }}
+            className={cn(
+              'flex min-h-[44px] min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl px-2 font-display text-sm font-bold shadow-sticker transition-colors',
+              mode === 'build'
+                ? 'bg-terracotta text-paper'
+                : 'bg-paper text-cocoa outline-cozy hover:bg-wall',
+            )}
+          >
+            <span className="shrink-0 text-lg leading-none">{mode === 'build' ? '▶' : '🔨'}</span>
+            <span className="seg-label truncate">{mode === 'build' ? 'В игру' : 'Расстановка'}</span>
+          </motion.button>
+        </div>
+        <div className="panel-tabs scroll-peek flex min-w-0 gap-2 overflow-x-auto pb-0.5">
           <TabBar active={tab} onChange={onTab} questsBadge={questsBadge} deliveryBadge={deliveryBadge} achievementsBadge={achievementsBadge} />
         </div>
-        <GameButton
-          variant={mode === 'build' ? 'buy' : 'primary'}
-          className="shrink-0 px-3 text-sm sm:px-5 sm:text-base"
-          onClick={() => {
-            const st = useGameStore.getState()
-            if (st.mode === 'build') st.exitBuildMode()
-            else st.enterBuildMode()
-          }}
-        >
-          {mode === 'build' ? '▶ В игру' : '🔨 Расстановка'}
-        </GameButton>
       </div>
 
       {/* Контент активного таба (внутренний скролл) */}

@@ -46,7 +46,7 @@ export default function CurrencyChip({ icon, value, tone = 'honey', className }:
       )}
     >
       <span className="text-[1.2em] leading-none">{icon}</span>
-      <span className="font-display tnum text-lg font-extrabold text-cocoa">{shown}</span>
+      <span className="tnum min-w-0 truncate font-display text-lg font-extrabold text-cocoa">{shown}</span>
     </motion.div>
   )
 }

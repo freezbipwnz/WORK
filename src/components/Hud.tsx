@@ -97,17 +97,20 @@ function SaveIndicator() {
   return (
     <span
       className={cn(
-        'hud-hide hidden text-xs font-semibold text-cocoa-soft transition-opacity sm:inline',
-        visible ? 'opacity-100' : 'opacity-40',
+        'hud-el pointer-events-auto flex h-10 w-10 select-none items-center justify-center rounded-xl text-lg transition-opacity',
+        visible ? 'anim-pop-in opacity-100' : 'opacity-45',
       )}
+      title={visible ? 'Прогресс сохранён ✓' : 'Автосейв каждые 30 секунд'}
     >
-      💾 {visible ? 'Сохранено ✓' : 'Автосейв'}
+      💾
     </span>
   )
 }
 
+/** Кнопки действий HUD — только иконки 40px с title-тултипом (design.md §7):
+ *  лишний текст убран, состояние — в тултипе и микро-бейдже */
 const hudBtn =
-  'hud-el flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl px-1 text-lg transition-transform active:scale-90 md:text-xl xl:text-2xl'
+  'hud-el flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-lg transition-transform active:scale-90 hover:bg-wall/70 md:text-xl'
 
 export default function Hud({ onReset }: { onReset: () => void }) {
   const coins = useGameStore((s) => s.coins)
@@ -143,7 +146,7 @@ export default function Hud({ onReset }: { onReset: () => void }) {
       <CriticReviewBadge />
       <div className="ml-auto flex items-center gap-1 sm:gap-2">
         {heldDish && (
-          <span className="hud-hide anim-pop-in rounded-full bg-sage/25 px-3 py-1 font-display text-xs font-bold text-cocoa">
+          <span className="hud-hide anim-pop-in max-w-[38vw] truncate rounded-full bg-sage/25 px-3 py-1 font-display text-xs font-bold text-cocoa">
             Несёшь {heldDish} — кликни по столу!
           </span>
         )}
@@ -165,12 +168,16 @@ export default function Hud({ onReset }: { onReset: () => void }) {
         </button>
         <button
           type="button"
-          className={hudBtn}
+          className={cn(hudBtn, 'relative')}
           title={`Скорость игры ×${speed}`}
           onClick={() => useGameStore.getState().toggleSpeed()}
         >
-          {speed === 1 ? '⏩' : '⏩'}
-          <span className="tnum font-display text-xs font-bold text-cocoa">×{speed}</span>
+          ⏩
+          {speed > 1 && (
+            <span className="tnum absolute -right-0.5 -top-0.5 rounded-full bg-terracotta px-1 font-display text-[0.625rem] font-extrabold leading-4 text-paper">
+              ×{speed}
+            </span>
+          )}
         </button>
         <button
           type="button"

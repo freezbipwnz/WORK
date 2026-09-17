@@ -61,7 +61,7 @@ function ItemCard({ item, index, coins, level }: CardProps) {
       className={cn(
         // Жёсткая структура ItemCard (design.md §10): всё в потоке внутри рамки,
         // никаких absolute/отрицательных margin — кнопка не может уехать за край
-        'outline-cozy flex min-w-0 flex-col gap-2 overflow-hidden rounded-2xl bg-paper p-3 shadow-sticker',
+        'outline-cozy flex min-w-0 flex-col gap-2.5 overflow-hidden rounded-2xl bg-paper p-3 shadow-sticker',
         locked && 'opacity-90',
       )}
     >
@@ -79,13 +79,13 @@ function ItemCard({ item, index, coins, level }: CardProps) {
             item.emoji
           )}
         </div>
-        <div className="flex flex-col items-end gap-1">
+        <div className="flex min-w-0 flex-col items-end gap-1">
           {locked && (
-            <span className="rounded-lg bg-berry/15 px-1.5 py-0.5 font-display text-[0.6875rem] font-bold text-berry">
+            <span className="shrink-0 whitespace-nowrap rounded-lg bg-berry/15 px-1.5 py-0.5 font-display text-[0.6875rem] font-bold text-berry">
               🔒 Ур. {item.level}
             </span>
           )}
-          <span className="rounded-lg bg-wall px-1.5 py-0.5 text-[0.6875rem] font-bold text-cocoa-soft">
+          <span className="shrink-0 whitespace-nowrap rounded-lg bg-wall px-1.5 py-0.5 text-[0.6875rem] font-bold text-cocoa-soft">
             {item.w}×{item.h}
           </span>
         </div>
@@ -151,19 +151,19 @@ function ExpansionCard({ index, coins, level, expansion }: { index: number; coin
       initial={{ scale: 0.5, opacity: 0 }}
       animate={{ scale: 1, opacity: 1 }}
       transition={{ type: 'spring', stiffness: 320, damping: 22, delay: index * 0.04 }}
-      className="outline-cozy flex min-w-0 flex-col gap-2 overflow-hidden rounded-2xl bg-cream p-3 shadow-sticker"
+      className="outline-cozy flex min-w-0 flex-col gap-2.5 overflow-hidden rounded-2xl bg-cream p-3 shadow-sticker"
     >
       <div className="flex items-start justify-between gap-1">
         <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-paper text-3xl leading-none shadow-[inset_0_2px_0_rgba(255,255,255,0.6)]">
           🏗️
         </div>
-        <div className="flex flex-col items-end gap-1">
+        <div className="flex min-w-0 flex-col items-end gap-1">
           {locked && (
-            <span className="rounded-lg bg-berry/15 px-1.5 py-0.5 font-display text-[0.6875rem] font-bold text-berry">
+            <span className="shrink-0 whitespace-nowrap rounded-lg bg-berry/15 px-1.5 py-0.5 font-display text-[0.6875rem] font-bold text-berry">
               🔒 Ур. {next.level}
             </span>
           )}
-          <span className="rounded-lg bg-wall px-1.5 py-0.5 text-[0.6875rem] font-bold text-cocoa-soft">
+          <span className="shrink-0 whitespace-nowrap rounded-lg bg-wall px-1.5 py-0.5 text-[0.6875rem] font-bold text-cocoa-soft">
             {hallWAt(expansion)}×{hallHAt(expansion)} → {next.hallW}×{next.hallH}
           </span>
         </div>
@@ -229,8 +229,8 @@ export default function ShopPanel() {
 
   return (
     <div className="flex h-full flex-col gap-2">
-      {/* Подкатегории-чипы */}
-      <div className="scroll-peek flex items-center gap-1.5 overflow-x-auto pb-0.5">
+      {/* Подкатегории-чипы: горизонтальный скролл с peek, чипы не сжимаются */}
+      <div className="scroll-peek flex min-w-0 items-center gap-1.5 overflow-x-auto pb-0.5">
         {CATEGORIES.map((c) => (
           <motion.button
             key={c.id}
@@ -256,8 +256,8 @@ export default function ShopPanel() {
       {/* Каталог: 2 колонки на узком экране, горизонт. переполнение не нужно —
           скролл внутри панели вертикальный */}
       <div
-        className="grid min-h-0 flex-1 auto-rows-min gap-2 overflow-y-auto pr-1 sm:gap-3"
-        style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(130px, 100%), 1fr))' }}
+        className="grid min-h-0 flex-1 auto-rows-min gap-2.5 overflow-y-auto pr-1 sm:gap-3"
+        style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(160px, 100%), 1fr))' }}
       >
         {/* Карточка расширения зала — только во вкладке «Всё», первой в сетке */}
         {cat === 'all' && expansion < MAX_EXPANSION && (

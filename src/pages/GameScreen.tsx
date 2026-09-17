@@ -206,15 +206,16 @@ function SceneViewport() {
         </motion.div>
       )}
 
-      {/* кнопки зума (тач-таргеты 44px); отступы — с safe-area, чтобы на
+      {/* кнопки зума (тач-таргеты 44px); прижаты к правому нижнему углу ЗОНЫ
+          сцены с отступом 12px от краёв (не от вьюпорта); с safe-area, чтобы на
           «чёлке»/с скруглёнными углами не залезали под экран */}
       <div
         className="absolute z-[60] flex flex-col gap-2"
         style={{
-          right: 'calc(0.5rem + env(safe-area-inset-right, 0px))',
+          right: 'calc(12px + env(safe-area-inset-right, 0px))',
           bottom: tutorialActive
             ? 'calc(11.5rem + env(safe-area-inset-bottom, 0px))'
-            : 'calc(0.5rem + env(safe-area-inset-bottom, 0px))',
+            : 'calc(12px + env(safe-area-inset-bottom, 0px))',
           transition: 'bottom 300ms ease',
         }}
       >

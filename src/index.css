@@ -183,8 +183,10 @@
       height: 100%;
       max-height: 100%;
     }
+    /* табы панели — один непрерывный скролл-ряд (peek), без переносов:
+       wrap давал наложение/«скобку» в шапке правой колонки */
     .panel-root .panel-tabs {
-      flex-wrap: wrap;
+      flex-wrap: nowrap;
     }
   }
 
@@ -235,8 +237,18 @@
     .panel-root .panel-tabs > div {
       flex-direction: column;
     }
+    /* панель всего 220px — многоколоночные сетки контента схлопываем в одну
+       колонку, иначе карточки ~94px неюзабельны (инлайн-стили перекрываются
+       только через !important) */
+    .panel-root .panel-content .grid {
+      grid-template-columns: 1fr !important;
+    }
     .panel-root .panel-content {
       flex: 1;
+    }
+    /* в колонке 220px подписи сегментов не помещаются — оставляем иконки + title */
+    .panel-root .seg-label {
+      display: none;
     }
   }
 

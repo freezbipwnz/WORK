@@ -34,7 +34,7 @@ function GemItemCard({
       animate={{ scale: 1, opacity: 1 }}
       transition={{ type: 'spring', stiffness: 320, damping: 22, delay: index * 0.04 }}
       className={cn(
-        'outline-cozy flex min-w-0 flex-col gap-2 overflow-hidden rounded-2xl bg-paper p-3 shadow-sticker',
+        'outline-cozy flex min-w-0 flex-col gap-2.5 overflow-hidden rounded-2xl bg-paper p-3 shadow-sticker',
         locked && 'opacity-90',
       )}
     >
@@ -51,13 +51,13 @@ function GemItemCard({
             item.emoji
           )}
         </div>
-        <div className="flex flex-col items-end gap-1">
+        <div className="flex min-w-0 flex-col items-end gap-1">
           {locked && (
-            <span className="rounded-lg bg-berry/15 px-1.5 py-0.5 font-display text-[0.6875rem] font-bold text-berry">
+            <span className="shrink-0 whitespace-nowrap rounded-lg bg-berry/15 px-1.5 py-0.5 font-display text-[0.6875rem] font-bold text-berry">
               🔒 Ур. {item.level}
             </span>
           )}
-          <span className="rounded-lg bg-sky/20 px-1.5 py-0.5 font-display text-[0.6875rem] font-bold text-cocoa">
+          <span className="shrink-0 whitespace-nowrap rounded-lg bg-sky/20 px-1.5 py-0.5 font-display text-[0.6875rem] font-bold text-cocoa">
             💎 эксклюзив
           </span>
         </div>
@@ -219,8 +219,8 @@ export default function GemShopPanel() {
         </h4>
         {gemItems.length ? (
           <div
-            className="grid auto-rows-min gap-2 sm:gap-3"
-            style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(130px, 100%), 1fr))' }}
+            className="grid auto-rows-min gap-2.5 sm:gap-3"
+            style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(160px, 100%), 1fr))' }}
           >
             {gemItems.map((item, i) => (
               <GemItemCard key={item.id} item={item} index={i} gems={gems} level={level} />

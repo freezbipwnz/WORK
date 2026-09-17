@@ -133,7 +133,7 @@ export default function MarketPanel() {
       </div>
       <div
         className="grid auto-rows-min gap-2"
-        style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(150px, 100%), 1fr))' }}
+        style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(170px, 100%), 1fr))' }}
       >
         {INGREDIENTS.map((ing, i) => (
           <IngredientRow key={ing.id} id={ing.id} index={i} coins={coins} stock={inventory[ing.id] ?? 0} />

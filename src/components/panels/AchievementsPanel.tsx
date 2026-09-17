@@ -42,7 +42,7 @@ function AchievementRow({
       </span>
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline justify-between gap-2">
-          <span className="font-display truncate text-[0.9375rem] font-bold text-cocoa">
+          <span className="min-w-0 truncate font-display text-[0.9375rem] font-bold text-cocoa" title={def.title}>
             {def.title}
             {claimed && ' ✅'}
           </span>
@@ -50,7 +50,7 @@ function AchievementRow({
             {progress}/{def.target}
           </span>
         </div>
-        <p className="truncate text-xs font-semibold text-cocoa-soft">{def.description}</p>
+        <p className="truncate text-xs font-semibold text-cocoa-soft" title={def.description}>{def.description}</p>
         {/* Прогресс-бар honey */}
         <div className="mt-1 h-2 overflow-hidden rounded-full bg-wall">
           <motion.div
@@ -70,9 +70,13 @@ function AchievementRow({
         <motion.div
           animate={{ scale: [1, 1.06, 1] }}
           transition={{ duration: 1.2, repeat: Infinity, ease: 'easeInOut' }}
-          className="shrink-0"
+          className="min-w-0"
         >
-          <GameButton variant="buy" onClick={() => onClaim(def.id)} className="px-3">
+          <GameButton
+            variant="buy"
+            onClick={() => onClaim(def.id)}
+            className="w-full min-w-0 truncate px-2 text-[0.8125rem]"
+          >
             Забрать +{def.reward}🪙{def.gemReward ? ` +${def.gemReward}💎` : ''}
           </GameButton>
         </motion.div>

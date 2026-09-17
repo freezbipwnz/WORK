@@ -66,14 +66,16 @@ function DeliveryCard({
           />
         </div>
       </div>
-      <GameButton
-        variant="buy"
-        className="shrink-0 px-3"
-        disabled={disabled}
-        onClick={() => useGameStore.getState().startDeliveryCooking(order.id, Date.now())}
-      >
-        {allStarted ? 'Курьер ждёт 🛵' : freeStove ? 'Готовить' : 'Плиты заняты'}
-      </GameButton>
+      <div className="min-w-0">
+        <GameButton
+          variant="buy"
+          className="w-full min-w-0 truncate px-2 text-[0.8125rem]"
+          disabled={disabled}
+          onClick={() => useGameStore.getState().startDeliveryCooking(order.id, Date.now())}
+        >
+          {allStarted ? 'Курьер ждёт 🛵' : freeStove ? 'Готовить' : 'Плиты заняты'}
+        </GameButton>
+      </div>
     </motion.div>
   )
 }

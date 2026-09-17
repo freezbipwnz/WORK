@@ -33,15 +33,18 @@ export default function TabBar({ active, onChange, questsBadge, deliveryBadge, a
         <motion.button
           key={t.id}
           type="button"
+          title={t.label}
           whileTap={{ scale: 0.94 }}
           onClick={() => onChange(t.id)}
           className={cn(
-            'relative flex min-h-[44px] min-w-[44px] items-center gap-2 rounded-xl px-3 py-2.5 font-display text-sm font-bold shadow-sticker outline-cozy md:text-base xl:px-4 xl:text-lg',
+            'relative flex min-h-[44px] min-w-[44px] shrink-0 items-center gap-2 whitespace-nowrap rounded-xl px-3 py-2.5 font-display text-sm font-bold shadow-sticker outline-cozy lg:px-2 xl:text-base',
             active === t.id ? 'bg-terracotta text-paper' : 'bg-paper text-cocoa hover:bg-wall',
           )}
         >
           <span className="text-lg leading-none">{t.icon}</span>
-          <span className="hidden md:inline">{t.label}</span>
+          {/* подписи — только в stacked-раскладке (<1024px): в сайдбаре 440–560px
+              7 табов с текстом в ряд не помещаются, иконки + title достаточно */}
+          <span className="hidden md:max-lg:inline">{t.label}</span>
           {t.id === 'delivery' && deliveryBadge && (
             <span className="anim-badge-pulse absolute -right-1 -top-1 h-3 w-3 rounded-full bg-berry outline outline-2 outline-paper" />
           )}

@@ -101,12 +101,12 @@ function QuestRow({
         <motion.div
           animate={{ scale: [1, 1.06, 1] }}
           transition={{ duration: 1.2, repeat: Infinity, ease: 'easeInOut' }}
-          className="shrink-0"
+          className="min-w-0"
         >
           <GameButton
             variant="buy"
             onClick={() => onClaim(quest.id)}
-            className="px-3"
+            className="w-full min-w-0 truncate px-2 text-[0.8125rem]"
           >
             Забрать +{quest.reward}🪙{quest.xpReward ? ` +${quest.xpReward}✨` : ""}{quest.gemReward ? ` +${quest.gemReward}💎` : ""}
           </GameButton>
@@ -283,8 +283,9 @@ export default function QuestsPanel() {
     <button
       type="button"
       onClick={() => setTab(id)}
+      title={label}
       className={cn(
-        'min-h-[44px] flex-1 rounded-2xl px-3 font-display text-sm font-extrabold transition-colors outline-cozy',
+        'min-h-[44px] min-w-0 flex-auto truncate rounded-2xl px-1.5 font-display text-[0.8125rem] font-extrabold transition-colors outline-cozy',
         tab === id
           ? 'bg-cocoa text-paper shadow-sticker'
           : 'bg-paper text-cocoa-soft border-2 border-cocoa/15',
