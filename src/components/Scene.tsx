@@ -3,7 +3,7 @@ import type { CSSProperties, ReactNode } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useGameStore } from '@/game/store'
 import { DOOR, HALL_H, curbRowAt, gridWAt, hallHAt, hallWAt, streetRowsAt, getItem, pxOffsetToCells, seatOffsets } from '@/game/catalog'
-import { isoX, isoY, zOrder, Z, SCENE_W, SCENE_H, ORIGIN_Y, WALL_H, TILE_W, TILE_H } from '@/game/iso'
+import { isoX, isoY, zOrder, Z, SCENE_W, SCENE_H, WALL_H, TILE_W, TILE_H } from '@/game/iso'
 import type { Client, Pedestrian, PlacedItem, StaffNpc, Stain } from '@/game/types'
 import { cn } from '@/lib/utils'
 import { CHAIR_SPRITE, CUSTOMER_SPRITES, DISH_SPRITES, ITEM_SPRITES, STAFF_SPRITES, customerSprite, spriteUrl } from './sprites'
@@ -379,13 +379,15 @@ function PlacedItemView({ item }: { item: PlacedItem }) {
         />
       )
     case 'painting':
-      // Картина висит на левой стене (за рядом y=0), без тайла пола
+      // Картина висит на левой стене: прибита к её линии y=-0.5 — центр по X
+      // на стене, верхняя треть высоты стены (координаты из iso, не константы,
+      // чтобы при расширении зала ничего не «улетало» в воздух)
       return (
         <div
           className="pointer-events-none absolute"
           style={{
-            left: isoX(item.x, 0) - 16,
-            top: ORIGIN_Y - 56,
+            left: isoX(item.x, -0.5) - 22,
+            top: isoY(item.x, -0.5) - WALL_H + 26,
             zIndex: 1,
           }}
         >

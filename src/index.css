@@ -195,6 +195,11 @@
   @media (max-width: 639px) and (orientation: portrait) {
     .game-frame {
       gap: 6px;
+      /* сцена НЕ схлопывается до нуля: при высоком HUD (крупный системный
+         шрифт, бейджи событий) + раскрытом sheet строка 1fr уходила в 0 —
+         сцена исчезала, а toast-zone (absolute внутри сцены) оседала поверх
+         шапки панели и «срезала» верхушки табов */
+      grid-template-rows: auto minmax(96px, 1fr) auto;
       /* боковые отступы 12px (в диапазоне 12–16 из game.md §8) + safe-area,
          чтобы контент не прилипал к краю экрана на телефоне */
       padding: calc(8px + env(safe-area-inset-top)) calc(12px + env(safe-area-inset-right))
@@ -209,9 +214,12 @@
     .panel-root.panel-expanded .panel-content {
       display: block;
       /* flex-1 (grow) в контейнере с auto-высотой растягивал бы контент на всё
-         свободное место и схлопывал сцену до нуля — здесь высота фиксирована */
+         свободное место и схлопывал сцену до нуля — здесь высота фиксирована.
+         Потолок считается от viewport с запасом под HUD (~4 строки) и минимальную
+         сцену: при крупном системном шрифте rem-запас растёт вместе с HUD,
+         sheet ужимается, а не сцена */
       flex: none;
-      height: min(45dvh, 380px);
+      height: min(45dvh, 380px, calc(100dvh - 24rem));
     }
   }
 
